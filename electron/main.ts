@@ -6,6 +6,7 @@ import type { DeckData, ViewMode, UpdateInfo } from '../src/types';
 
 let mainWindow: BrowserWindow | null = null;
 let quickAddWindow: BrowserWindow | null = null;
+let patchNoticeWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentMode: ViewMode = 'widget';
 let reminderIntervalTimer: NodeJS.Timeout | null = null;
@@ -15,6 +16,8 @@ const WIDGET_WIDTH = 280;
 const WIDGET_DEFAULT_HEIGHT = 160;
 const POPUP_WIDTH = 380;
 const POPUP_HEIGHT = 540;
+const PATCH_WINDOW_WIDTH = 540;
+const PATCH_WINDOW_HEIGHT = 460;
 const DECK_WIDTH = 1080;
 const DECK_HEIGHT = 740;
 
@@ -331,6 +334,9 @@ function createMainWindow() {
       if (quickAddWindow && !quickAddWindow.isDestroyed()) {
         quickAddWindow.close();
       }
+      if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
+        patchNoticeWindow.close();
+      }
       mainWindow?.hide();
     }
   });
@@ -402,6 +408,61 @@ function createQuickAddWindow(category: string = 'coding') {
 
   quickAddWindow.on('closed', () => {
     quickAddWindow = null;
+  });
+}
+
+function createPatchNoticeWindow() {
+  if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
+    if (patchNoticeWindow.isMinimized()) patchNoticeWindow.restore();
+    patchNoticeWindow.show();
+    patchNoticeWindow.focus();
+    return;
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  const x = Math.floor((screenWidth - PATCH_WINDOW_WIDTH) / 2);
+  const y = Math.floor((screenHeight - PATCH_WINDOW_HEIGHT) / 2);
+
+  const appIconPath = path.join(app.getAppPath(), 'public', 'icon.png');
+
+  patchNoticeWindow = new BrowserWindow({
+    title: '',
+    width: PATCH_WINDOW_WIDTH,
+    height: PATCH_WINDOW_HEIGHT,
+    x,
+    y,
+    frame: false,
+    transparent: false,
+    backgroundMaterial: 'acrylic',
+    roundedCorners: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    hasShadow: true,
+    autoHideMenuBar: true,
+    icon: fs.existsSync(appIconPath) ? appIconPath : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false,
+    }
+  });
+
+  patchNoticeWindow.setMenuBarVisibility(false);
+
+  const isDev = !app.isPackaged && process.env.NODE_ENV === 'development';
+  if (isDev) {
+    patchNoticeWindow.loadURL('http://localhost:5173/#patch-notice').catch(() => {
+      patchNoticeWindow?.loadFile(path.join(app.getAppPath(), 'dist/index.html'), { hash: 'patch-notice' });
+    });
+  } else {
+    patchNoticeWindow.loadFile(path.join(app.getAppPath(), 'dist/index.html'), { hash: 'patch-notice' });
+  }
+
+  patchNoticeWindow.on('closed', () => {
+    patchNoticeWindow = null;
   });
 }
 
@@ -660,6 +721,14 @@ ipcMain.handle('window:close-quick-add', () => {
     quickAddWindow.close();
   }
 });
+ipcMain.handle('window:open-patch-notice', () => {
+  createPatchNoticeWindow();
+});
+ipcMain.handle('window:close-patch-notice', () => {
+  if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
+    patchNoticeWindow.close();
+  }
+});
 ipcMain.handle('window:set-mode', (_, mode: ViewMode) => setWindowMode(mode));
 ipcMain.handle('window:get-mode', () => currentMode);
 ipcMain.handle('window:set-widget-height', (_, height: number) => {
@@ -752,8 +821,13 @@ app.whenReady().then(() => {
   setTimeout(async () => {
     try {
       const updateInfo = await fetchLatestRelease();
-      if (updateInfo.available && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('deck:update-available', updateInfo);
+      if (updateInfo.available) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('deck:update-available', updateInfo);
+        }
+        if (currentMode === 'widget') {
+          createPatchNoticeWindow();
+        }
       }
     } catch {}
   }, 6000);

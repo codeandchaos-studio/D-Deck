@@ -4,6 +4,7 @@ import { loadDeckData, saveDeckData, DEFAULT_SETTINGS } from './services/storage
 import { WidgetView } from './components/widget/WidgetView';
 import { DeckView } from './components/deck/DeckView';
 import { QuickAddPopup } from './components/widget/QuickAddPopup';
+import { PatchNoticePopup } from './components/common/PatchNoticePopup';
 import { PatchNoticeModal } from './components/common/PatchNoticeModal';
 import { sfx } from './services/audio';
 import { checkUpdates, isUpdateDismissed, dismissUpdate } from './services/updater';
@@ -13,6 +14,12 @@ export const App: React.FC = () => {
   const isQuickAddPopup = typeof window !== 'undefined' && window.location.hash.startsWith('#quick-add');
   if (isQuickAddPopup) {
     return <QuickAddPopup />;
+  }
+
+  // Dedicated Desktop Patch Notice window mode (desktop screen popup for widget mode)
+  const isPatchNoticePopup = typeof window !== 'undefined' && window.location.hash.startsWith('#patch-notice');
+  if (isPatchNoticePopup) {
+    return <PatchNoticePopup />;
   }
 
   const [deckData, setDeckData] = useState<DeckData | null>(null);
@@ -61,9 +68,11 @@ export const App: React.FC = () => {
 
     if (window.electronAPI?.onUpdateAvailable) {
       unsubUpdate = window.electronAPI.onUpdateAvailable((info) => {
-        if (info && info.available && !isUpdateDismissed(info.latestVersion)) {
+        if (info && info.available) {
           setUpdateInfo(info);
-          setIsPatchNoticeOpen(true);
+          if (viewMode === 'deck' && !isUpdateDismissed(info.latestVersion)) {
+            setIsPatchNoticeOpen(true);
+          }
         }
       });
     }
@@ -72,9 +81,11 @@ export const App: React.FC = () => {
     const updateTimer = setTimeout(async () => {
       try {
         const info = await checkUpdates(false);
-        if (info && info.available && !isUpdateDismissed(info.latestVersion)) {
+        if (info && info.available) {
           setUpdateInfo(info);
-          setIsPatchNoticeOpen(true);
+          if (viewMode === 'deck' && !isUpdateDismissed(info.latestVersion)) {
+            setIsPatchNoticeOpen(true);
+          }
         }
       } catch {}
     }, 6000);
@@ -97,6 +108,9 @@ export const App: React.FC = () => {
 
   const handleSwitchMode = async (mode: ViewMode) => {
     setViewMode(mode);
+    if (mode === 'deck' && updateInfo?.available && !isUpdateDismissed(updateInfo.latestVersion)) {
+      setIsPatchNoticeOpen(true);
+    }
     if (window.electronAPI) {
       await window.electronAPI.setWindowMode(mode);
     }
@@ -210,6 +224,7 @@ export const App: React.FC = () => {
           tasks={deckData.tasks}
           settings={deckData.settings}
           streak={deckData.streak}
+          updateAvailable={!!updateInfo?.available}
           onAddTask={handleAddTask}
           onToggleTask={handleToggleTask}
           onDeleteTask={handleDeleteTask}
@@ -235,17 +250,19 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* In-App Release Patch Notice Modal */}
-      <PatchNoticeModal
-        isOpen={isPatchNoticeOpen}
-        updateInfo={updateInfo}
-        onClose={() => {
-          setIsPatchNoticeOpen(false);
-          if (updateInfo) {
-            dismissUpdate(updateInfo.latestVersion);
-          }
-        }}
-      />
+      {/* In-App Release Patch Notice Modal - strictly only displayed in Deck Mode */}
+      {viewMode === 'deck' && (
+        <PatchNoticeModal
+          isOpen={isPatchNoticeOpen}
+          updateInfo={updateInfo}
+          onClose={() => {
+            setIsPatchNoticeOpen(false);
+            if (updateInfo) {
+              dismissUpdate(updateInfo.latestVersion);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

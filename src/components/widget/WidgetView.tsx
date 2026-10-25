@@ -9,6 +9,7 @@ interface WidgetViewProps {
   tasks: Task[];
   settings: AppSettings;
   streak?: StreakMetrics;
+  updateAvailable?: boolean;
   onAddTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed'>) => void;
   onToggleTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
@@ -23,6 +24,7 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
   tasks,
   settings,
   streak,
+  updateAvailable,
   onAddTask,
   onToggleTask,
   onDeleteTask,
@@ -83,6 +85,7 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
         onQuickAdd={handleOpenAdd}
         onExpandToDeck={onExpandToDeck}
         alwaysOnTop={settings.alwaysOnTop}
+        updateAvailable={updateAvailable}
         onToggleAlwaysOnTop={onToggleAlwaysOnTop}
         onMinimize={onMinimize}
         onClose={onClose}

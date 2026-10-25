@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Maximize2, Pin, PinOff, Minus, X, Timer, Play, Pause, RotateCcw } from 'lucide-react';
+import { Plus, Maximize2, Pin, PinOff, Minus, X, Timer, Play, Pause, RotateCcw, Sparkles } from 'lucide-react';
 import { DDeckLogo } from '../common/DDeckLogo';
 import { sfx } from '../../services/audio';
 
@@ -7,6 +7,7 @@ interface WidgetHeaderProps {
   onQuickAdd: () => void;
   onExpandToDeck: () => void;
   alwaysOnTop: boolean;
+  updateAvailable?: boolean;
   onToggleAlwaysOnTop: () => void;
   onMinimize: () => void;
   onClose: () => void;
@@ -18,6 +19,7 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
   onQuickAdd,
   onExpandToDeck,
   alwaysOnTop,
+  updateAvailable,
   onToggleAlwaysOnTop,
   onMinimize,
   onClose,
@@ -128,6 +130,22 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
       </div>
 
       <div className="titlebar-no-drag flex items-center gap-1">
+        {/* Update Notice Trigger for Widget Mode */}
+        {updateAvailable && (
+          <button
+            onClick={() => {
+              sfx.playClick();
+              if (window.electronAPI?.openPatchNotice) {
+                window.electronAPI.openPatchNotice();
+              }
+            }}
+            title="New Update Available - Click to view patch notice"
+            className="p-1 rounded-lg bg-amber-400/25 text-amber-300 border border-amber-400/60 hover:bg-amber-400/40 transition-all animate-pulse"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+          </button>
+        )}
+
         {/* Quick Add */}
         <button
           onClick={() => {

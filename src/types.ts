@@ -104,6 +104,8 @@ export interface ElectronAPI {
   selectCustomSound?: () => Promise<string | null>;
   checkForUpdates?: (manual?: boolean) => Promise<UpdateInfo>;
   onUpdateAvailable?: (callback: (info: UpdateInfo) => void) => () => void;
+  openPatchNotice?: () => Promise<void>;
+  closePatchNotice?: () => Promise<void>;
   openQuickAdd?: (category?: string) => Promise<void>;
   closeQuickAdd?: () => Promise<void>;
   onDataUpdated?: (callback: (data: DeckData) => void) => () => void;
