@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import type { Task, AppSettings, StreakMetrics } from '../../types';
+import type { Task, AppSettings, StreakMetrics, UpdateInfo } from '../../types';
 import { DDeckLogo } from '../common/DDeckLogo';
 import { TaskItem } from '../widget/TaskItem';
 import { QuickAddModal } from '../widget/QuickAddModal';
+import { PatchNoticeModal } from '../common/PatchNoticeModal';
 import logoImg from '../../assets/logo.png';
 import { 
   LayoutDashboard, 
@@ -28,10 +29,12 @@ import {
   FolderOpen,
   RotateCcw,
   Tag,
-  Check
+  Check,
+  CheckCircle2
 } from 'lucide-react';
 import { sfx } from '../../services/audio';
 import { exportDataAsJSON } from '../../services/storage';
+import { checkUpdates } from '../../services/updater';
 
 interface DeckViewProps {
   tasks: Task[];
@@ -65,6 +68,26 @@ export const DeckView: React.FC<DeckViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'latest' | 'available'>('idle');
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isPatchModalOpen, setIsPatchModalOpen] = useState(false);
+
+  const handleManualCheckUpdate = async () => {
+    setUpdateStatus('checking');
+    sfx.playClick();
+    try {
+      const info = await checkUpdates(true);
+      setUpdateInfo(info);
+      if (info.available) {
+        setUpdateStatus('available');
+        setIsPatchModalOpen(true);
+      } else {
+        setUpdateStatus('latest');
+      }
+    } catch {
+      setUpdateStatus('latest');
+    }
+  };
 
   const handleOpenAdd = (defaultTag?: string) => {
     sfx.playClick();
@@ -486,9 +509,31 @@ export const DeckView: React.FC<DeckViewProps> = ({
 
                 {/* Release Specs */}
                 <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                  <div className="p-3 rounded-xl glass-card border border-white/20">
-                    <span className="text-[10px] text-white/70 font-mono uppercase tracking-wider">Version History</span>
-                    <p className="text-white mt-1 font-semibold">v2.0.0 Stable (Major Release)</p>
+                  <div className="p-3 rounded-xl glass-card border border-white/20 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-white/70 font-mono uppercase tracking-wider">Version History</span>
+                      <p className="text-white mt-1 font-semibold flex items-center gap-1.5">
+                        <span>v2.0.0 Stable</span>
+                        {updateStatus === 'available' && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-400 text-zinc-950 font-bold text-[9px] uppercase tracking-wider">
+                            Update
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={updateStatus === 'checking'}
+                      onClick={handleManualCheckUpdate}
+                      className="mt-2 text-[10px] font-mono text-amber-300 hover:text-amber-200 text-left flex items-center gap-1 transition-colors"
+                    >
+                      <RotateCcw className={`w-2.5 h-2.5 ${updateStatus === 'checking' ? 'animate-spin' : ''}`} />
+                      <span>
+                        {updateStatus === 'checking' ? 'Checking GitHub...' : 
+                         updateStatus === 'available' ? 'Update available! View patch' : 
+                         updateStatus === 'latest' ? 'Up to date' : 'Check for updates'}
+                      </span>
+                    </button>
                   </div>
                   <div className="p-3 rounded-xl glass-card border border-white/20">
                     <span className="text-[10px] text-white/70 font-mono uppercase tracking-wider">Supported Platforms</span>
@@ -712,6 +757,60 @@ export const DeckView: React.FC<DeckViewProps> = ({
                     Export JSON
                   </button>
                 </div>
+
+                {/* Application Updates Card */}
+                <div className="p-3.5 rounded-xl glass-card border border-white/20 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-white/10 text-amber-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-white">Application Updates</h4>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/10 text-white/80 border border-white/15">
+                            v2.0.0
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/70">
+                          {updateStatus === 'checking' && 'Checking GitHub releases for latest patches...'}
+                          {updateStatus === 'latest' && 'You are running the latest official version.'}
+                          {updateStatus === 'available' && updateInfo && `New patch available: v${updateInfo.latestVersion}`}
+                          {updateStatus === 'idle' && 'Check for official patches, features, and fixes.'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      {updateStatus === 'available' && updateInfo && (
+                        <button
+                          type="button"
+                          onClick={() => setIsPatchModalOpen(true)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-zinc-950 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 animate-pulse"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>View Patch ({updateInfo.latestVersion})</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={updateStatus === 'checking'}
+                        onClick={handleManualCheckUpdate}
+                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-amber-400/50 hover:text-amber-300 text-xs font-mono font-medium transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <RotateCcw className={`w-3.5 h-3.5 ${updateStatus === 'checking' ? 'animate-spin text-amber-400' : ''}`} />
+                        <span>{updateStatus === 'checking' ? 'Checking...' : 'Check for Updates'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  {updateStatus === 'latest' && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono pl-11">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Up to date. No new releases pending.</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -723,6 +822,12 @@ export const DeckView: React.FC<DeckViewProps> = ({
         onClose={() => setIsQuickAddOpen(false)}
         onAddTask={onAddTask}
         initialCategory={selectedTag || ''}
+      />
+
+      <PatchNoticeModal
+        isOpen={isPatchModalOpen}
+        updateInfo={updateInfo}
+        onClose={() => setIsPatchModalOpen(false)}
       />
     </div>
   );

@@ -16,8 +16,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePosition: (mode: ViewMode, x: number, y: number) => ipcRenderer.invoke('window:save-position', mode, x, y),
   setWidgetHeight: (height: number) => ipcRenderer.invoke('window:set-widget-height', height),
   selectCustomSound: () => ipcRenderer.invoke('app:select-custom-sound'),
+  checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
   openQuickAdd: (category?: string) => ipcRenderer.invoke('window:open-quick-add', category),
   closeQuickAdd: () => ipcRenderer.invoke('window:close-quick-add'),
+  onUpdateAvailable: (callback: (info: any) => void) => {
+    const handler = (_: any, info: any) => callback(info);
+    ipcRenderer.on('deck:update-available', handler);
+    return () => {
+      ipcRenderer.removeListener('deck:update-available', handler);
+    };
+  },
   onDataUpdated: (callback: (data: DeckData) => void) => {
     const handler = (_: any, data: DeckData) => callback(data);
     ipcRenderer.on('deck:data-updated', handler);

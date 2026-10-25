@@ -68,6 +68,18 @@ export interface StreakMetrics {
   weeklyVelocity: number; // completed tasks in last 7 days
 }
 
+export interface UpdateInfo {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseName: string;
+  releaseNotes: string;
+  publishedAt: string;
+  downloadUrl: string;
+  installerUrl?: string;
+  portableUrl?: string;
+}
+
 export interface DeckData {
   tasks: Task[];
   settings: AppSettings;
@@ -90,6 +102,8 @@ export interface ElectronAPI {
   savePosition: (mode: ViewMode, x: number, y: number) => Promise<void>;
   setWidgetHeight?: (height: number) => Promise<void>;
   selectCustomSound?: () => Promise<string | null>;
+  checkForUpdates?: (manual?: boolean) => Promise<UpdateInfo>;
+  onUpdateAvailable?: (callback: (info: UpdateInfo) => void) => () => void;
   openQuickAdd?: (category?: string) => Promise<void>;
   closeQuickAdd?: () => Promise<void>;
   onDataUpdated?: (callback: (data: DeckData) => void) => () => void;

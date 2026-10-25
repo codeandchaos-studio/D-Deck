@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, shell, screen, nativeImage, globalShortcut, nativeTheme, dialog } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import type { DeckData, ViewMode } from '../src/types';
+import https from 'https';
+import type { DeckData, ViewMode, UpdateInfo } from '../src/types';
 
 let mainWindow: BrowserWindow | null = null;
 let quickAddWindow: BrowserWindow | null = null;
@@ -529,6 +530,116 @@ function setWindowMode(mode: ViewMode) {
   }
 }
 
+function getCurrentVersion(): string {
+  try {
+    return app.getVersion() || '2.0.0';
+  } catch {
+    return '2.0.0';
+  }
+}
+
+function compareSemver(v1: string, v2: string): number {
+  const clean1 = (v1 || '').replace(/^v/, '').trim();
+  const clean2 = (v2 || '').replace(/^v/, '').trim();
+  const p1 = clean1.split('.').map(n => parseInt(n, 10) || 0);
+  const p2 = clean2.split('.').map(n => parseInt(n, 10) || 0);
+
+  for (let i = 0; i < 3; i++) {
+    const num1 = p1[i] || 0;
+    const num2 = p2[i] || 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  return 0;
+}
+
+function fetchLatestRelease(): Promise<UpdateInfo> {
+  const currentVersion = getCurrentVersion();
+  const repo = 'codeandchaos-studio/D-Deck';
+  const url = `https://api.github.com/repos/${repo}/releases/latest`;
+
+  return new Promise((resolve) => {
+    function handleError() {
+      resolve({
+        available: false,
+        currentVersion,
+        latestVersion: currentVersion,
+        releaseName: '',
+        releaseNotes: '',
+        publishedAt: '',
+        downloadUrl: `https://github.com/${repo}/releases/latest`
+      });
+    }
+
+    function handleResponse(response: any) {
+      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        https.get(response.headers.location, {
+          headers: {
+            'User-Agent': 'D-Deck-App',
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        }, handleResponse).on('error', handleError);
+        return;
+      }
+
+      let data = '';
+      response.on('data', (chunk: any) => { data += chunk; });
+      response.on('end', () => {
+        try {
+          if (response.statusCode !== 200) {
+            handleError();
+            return;
+          }
+
+          const parsed = JSON.parse(data);
+          const latestVersion = (parsed.tag_name || '').replace(/^v/, '');
+          const isNewer = compareSemver(latestVersion, currentVersion) > 0;
+
+          let installerUrl = '';
+          let portableUrl = '';
+          if (Array.isArray(parsed.assets)) {
+            for (const asset of parsed.assets) {
+              const name = (asset.name || '').toLowerCase();
+              if (name.includes('setup') && name.endsWith('.exe')) {
+                installerUrl = asset.browser_download_url;
+              } else if (name.includes('portable') && name.endsWith('.exe')) {
+                portableUrl = asset.browser_download_url;
+              }
+            }
+          }
+
+          resolve({
+            available: isNewer,
+            currentVersion,
+            latestVersion,
+            releaseName: parsed.name || `D-Deck v${latestVersion}`,
+            releaseNotes: parsed.body || 'New enhancements and stability improvements.',
+            publishedAt: parsed.published_at || new Date().toISOString(),
+            downloadUrl: parsed.html_url || `https://github.com/${repo}/releases/latest`,
+            installerUrl: installerUrl || parsed.html_url,
+            portableUrl: portableUrl || parsed.html_url
+          });
+        } catch {
+          handleError();
+        }
+      });
+    }
+
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'D-Deck-App',
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    }, handleResponse);
+
+    req.on('error', handleError);
+    req.setTimeout(8000, () => {
+      req.destroy();
+      handleError();
+    });
+  });
+}
+
 // IPC Handlers
 ipcMain.handle('deck:get-data', () => readDeckData());
 ipcMain.handle('deck:save-data', (_, data: DeckData) => {
@@ -585,6 +696,9 @@ ipcMain.handle('app:select-custom-sound', async () => {
   }
   return result.filePaths[0];
 });
+ipcMain.handle('app:check-for-updates', async () => {
+  return await fetchLatestRelease();
+});
 ipcMain.handle('window:set-always-on-top', (_, flag: boolean) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(flag);
 });
@@ -633,6 +747,16 @@ app.whenReady().then(() => {
   setupTray();
   checkStartupAgenda();
   startReminderLoop();
+
+  // Non-blocking background check for new updates
+  setTimeout(async () => {
+    try {
+      const updateInfo = await fetchLatestRelease();
+      if (updateInfo.available && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('deck:update-available', updateInfo);
+      }
+    } catch {}
+  }, 6000);
 
   // Global Stealth Hotkey: Ctrl+Shift+D toggles HUD over any game or editor
   try {

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { Task, DeckData, ViewMode, AppSettings } from './types';
+import type { Task, DeckData, ViewMode, AppSettings, UpdateInfo } from './types';
 import { loadDeckData, saveDeckData, DEFAULT_SETTINGS } from './services/storage';
 import { WidgetView } from './components/widget/WidgetView';
 import { DeckView } from './components/deck/DeckView';
 import { QuickAddPopup } from './components/widget/QuickAddPopup';
+import { PatchNoticeModal } from './components/common/PatchNoticeModal';
 import { sfx } from './services/audio';
+import { checkUpdates, isUpdateDismissed, dismissUpdate } from './services/updater';
 
 export const App: React.FC = () => {
   // Dedicated rectangular QuickAdd popup window mode
@@ -16,6 +18,8 @@ export const App: React.FC = () => {
   const [deckData, setDeckData] = useState<DeckData | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('widget');
   const [isLoading, setIsLoading] = useState(true);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isPatchNoticeOpen, setIsPatchNoticeOpen] = useState(false);
 
   // Load local data on mount and listen for external updates
   useEffect(() => {
@@ -39,6 +43,7 @@ export const App: React.FC = () => {
 
     let unsubData: (() => void) | undefined;
     let unsubSound: (() => void) | undefined;
+    let unsubUpdate: (() => void) | undefined;
 
     if (window.electronAPI?.onDataUpdated) {
       unsubData = window.electronAPI.onDataUpdated((data) => {
@@ -54,9 +59,31 @@ export const App: React.FC = () => {
       });
     }
 
+    if (window.electronAPI?.onUpdateAvailable) {
+      unsubUpdate = window.electronAPI.onUpdateAvailable((info) => {
+        if (info && info.available && !isUpdateDismissed(info.latestVersion)) {
+          setUpdateInfo(info);
+          setIsPatchNoticeOpen(true);
+        }
+      });
+    }
+
+    // Silent background check after initial load
+    const updateTimer = setTimeout(async () => {
+      try {
+        const info = await checkUpdates(false);
+        if (info && info.available && !isUpdateDismissed(info.latestVersion)) {
+          setUpdateInfo(info);
+          setIsPatchNoticeOpen(true);
+        }
+      } catch {}
+    }, 6000);
+
     return () => {
+      clearTimeout(updateTimer);
       if (unsubData) unsubData();
       if (unsubSound) unsubSound();
+      if (unsubUpdate) unsubUpdate();
     };
   }, []);
 
@@ -207,6 +234,18 @@ export const App: React.FC = () => {
           onClose={handleClose}
         />
       )}
+
+      {/* In-App Release Patch Notice Modal */}
+      <PatchNoticeModal
+        isOpen={isPatchNoticeOpen}
+        updateInfo={updateInfo}
+        onClose={() => {
+          setIsPatchNoticeOpen(false);
+          if (updateInfo) {
+            dismissUpdate(updateInfo.latestVersion);
+          }
+        }}
+      />
     </div>
   );
 };
