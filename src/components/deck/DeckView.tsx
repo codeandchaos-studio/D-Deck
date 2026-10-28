@@ -4,6 +4,7 @@ import { DDeckLogo } from '../common/DDeckLogo';
 import { TaskItem } from '../widget/TaskItem';
 import { QuickAddModal } from '../widget/QuickAddModal';
 import { PatchNoticeModal } from '../common/PatchNoticeModal';
+import { EditTaskModal } from '../common/EditTaskModal';
 import logoImg from '../../assets/logo.png';
 import { 
   LayoutDashboard, 
@@ -41,9 +42,12 @@ interface DeckViewProps {
   settings: AppSettings;
   streak?: StreakMetrics;
   onAddTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed'>) => void;
+  onUpdateTask?: (updatedTask: Task) => void;
   onToggleTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
+  onAddSubtask?: (taskId: string, title: string) => void;
+  onDeleteSubtask?: (taskId: string, subtaskId: string) => void;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
   onSwitchToWidget: () => void;
   onMinimize: () => void;
@@ -55,9 +59,12 @@ export const DeckView: React.FC<DeckViewProps> = ({
   settings,
   streak,
   onAddTask,
+  onUpdateTask,
   onToggleTask,
   onDeleteTask,
   onToggleSubtask,
+  onAddSubtask,
+  onDeleteSubtask,
   onUpdateSettings,
   onSwitchToWidget,
   onMinimize,
@@ -68,6 +75,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'latest' | 'available'>('idle');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isPatchModalOpen, setIsPatchModalOpen] = useState(false);
@@ -410,7 +418,10 @@ export const DeckView: React.FC<DeckViewProps> = ({
                         task={task}
                         onToggle={onToggleTask}
                         onDelete={onDeleteTask}
+                        onEdit={(t) => setEditingTask(t)}
                         onToggleSubtask={onToggleSubtask}
+                        onAddSubtask={onAddSubtask}
+                        onDeleteSubtask={onDeleteSubtask}
                       />
                     ))}
                   </div>
@@ -468,7 +479,10 @@ export const DeckView: React.FC<DeckViewProps> = ({
                       task={task}
                       onToggle={onToggleTask}
                       onDelete={onDeleteTask}
+                      onEdit={(t) => setEditingTask(t)}
                       onToggleSubtask={onToggleSubtask}
+                      onAddSubtask={onAddSubtask}
+                      onDeleteSubtask={onDeleteSubtask}
                     />
                   ))
                 )}
@@ -828,6 +842,15 @@ export const DeckView: React.FC<DeckViewProps> = ({
         isOpen={isPatchModalOpen}
         updateInfo={updateInfo}
         onClose={() => setIsPatchModalOpen(false)}
+      />
+
+      <EditTaskModal
+        isOpen={!!editingTask}
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+        onSaveTask={(updated) => {
+          if (onUpdateTask) onUpdateTask(updated);
+        }}
       />
     </div>
   );

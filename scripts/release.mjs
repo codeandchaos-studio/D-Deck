@@ -52,6 +52,74 @@ function bumpVersion(currentVersion, bumpType) {
   return `${major}.${minor}.${patch}`;
 }
 
+// Generate dynamic release notes based on git history and custom notes
+function generateReleaseNotes(targetVersion, customNotes = '') {
+  const lastTag = run('git describe --tags --abbrev=0', { ignoreError: true });
+  const range = lastTag ? `${lastTag}..HEAD` : '-n 20';
+  const rawCommits = run(`git log ${range} --pretty=format:"%s" --no-merges`, { ignoreError: true }) || '';
+
+  const commits = rawCommits
+    .split('\n')
+    .map(c => c.trim())
+    .filter(c => c && !c.startsWith('chore(release):') && !c.startsWith('chore(deps)'));
+
+  const features = [];
+  const fixes = [];
+  const others = [];
+
+  for (const c of commits) {
+    if (/^feat(\(.*\))?:/i.test(c)) {
+      features.push(c.replace(/^feat(\(.*\))?:\s*/i, ''));
+    } else if (/^fix(\(.*\))?:/i.test(c)) {
+      fixes.push(c.replace(/^fix(\(.*\))?:\s*/i, ''));
+    } else if (/^(perf|refactor|style)(\(.*\))?:/i.test(c)) {
+      fixes.push(c.replace(/^(perf|refactor|style)(\(.*\))?:\s*/i, ''));
+    } else {
+      others.push(c);
+    }
+  }
+
+  let notes = `# 🚀 D-Deck Release v${targetVersion}\n`;
+  notes += `> **Futuristic Desktop HUD Widget & Personal Command Center**\n`;
+  notes += `> Built by **Code & Chaos** — *We Built Stuff*\n\n`;
+  notes += `---\n\n`;
+
+  notes += `### ✨ Key Highlights in this Build\n`;
+  if (customNotes) {
+    notes += `- **${customNotes}**\n`;
+  }
+  if (features.length > 0) {
+    for (const f of features) {
+      notes += `- **New**: ${f}\n`;
+    }
+  }
+  if (fixes.length > 0) {
+    for (const fx of fixes) {
+      notes += `- **Fix**: ${fx}\n`;
+    }
+  }
+  if (!customNotes && features.length === 0 && fixes.length === 0) {
+    if (others.length > 0) {
+      for (const o of others.slice(0, 5)) {
+        notes += `- ${o}\n`;
+      }
+    } else {
+      notes += `- Performance optimizations, stability enhancements, and UI refinements.\n`;
+    }
+  }
+
+  notes += `\n---\n\n`;
+  notes += `### 📦 Downloads & Binaries\n`;
+  notes += `| File | Description | Download |\n`;
+  notes += `| :--- | :--- | :--- |\n`;
+  notes += `| **Windows Installer** | Recommended for Windows 10/11 with desktop shortcut & auto-start | \`D-Deck-Setup-${targetVersion}.exe\` |\n`;
+  notes += `| **Windows Portable** | Zero installation single executable, runs immediately from USB or folder | \`D-Deck-Portable-${targetVersion}.exe\` |\n\n`;
+  notes += `---\n`;
+  notes += `*Open Source • MIT License • Crafted by Code & Chaos*\n`;
+
+  return notes;
+}
+
 async function main() {
   console.log('\n========================================');
   console.log('   🚀 D-Deck Automated Release Engine   ');
@@ -65,7 +133,9 @@ async function main() {
 
   // 2. Parse arguments
   const isDryRun = process.argv.includes('--dry-run');
-  const arg = process.argv.slice(2).find(a => !a.startsWith('--')) || 'patch';
+  const nonFlagArgs = process.argv.slice(2).filter(a => !a.startsWith('--'));
+  const arg = nonFlagArgs[0] || 'patch';
+  const customNotes = nonFlagArgs.slice(1).join(' ').trim();
   let targetVersion = '';
 
   if (['patch', 'minor', 'major'].includes(arg)) {
@@ -102,7 +172,13 @@ async function main() {
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
   console.log(`\n✅ Updated package.json version to ${targetVersion}`);
 
-  // 5. Stage changes & commit
+  // 5. Generate dynamic Release Notes for this specific build
+  console.log(`📄 Generating dynamic RELEASE_NOTES.md for ${tagName}...`);
+  const releaseNotesContent = generateReleaseNotes(targetVersion, customNotes);
+  const notesPath = path.join(rootDir, 'RELEASE_NOTES.md');
+  fs.writeFileSync(notesPath, releaseNotesContent, 'utf8');
+
+  // 6. Stage changes & commit
   console.log(`📝 Creating release commit...`);
   run('git add -A');
   run(`git commit -m "chore(release): ${tagName}"`);

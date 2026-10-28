@@ -3,6 +3,7 @@ import type { Task, AppSettings, StreakMetrics } from '../../types';
 import { WidgetHeader } from './WidgetHeader';
 import { TaskItem } from './TaskItem';
 import { QuickAddModal } from './QuickAddModal';
+import { EditTaskModal } from '../common/EditTaskModal';
 import { Plus, Flame, CheckCircle2 } from 'lucide-react';
 
 interface WidgetViewProps {
@@ -11,9 +12,12 @@ interface WidgetViewProps {
   streak?: StreakMetrics;
   updateAvailable?: boolean;
   onAddTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed'>) => void;
+  onUpdateTask?: (updatedTask: Task) => void;
   onToggleTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
+  onAddSubtask?: (taskId: string, title: string) => void;
+  onDeleteSubtask?: (taskId: string, subtaskId: string) => void;
   onExpandToDeck: () => void;
   onToggleAlwaysOnTop: () => void;
   onMinimize: () => void;
@@ -26,15 +30,19 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
   streak,
   updateAvailable,
   onAddTask,
+  onUpdateTask,
   onToggleTask,
   onDeleteTask,
   onToggleSubtask,
+  onAddSubtask,
+  onDeleteSubtask,
   onExpandToDeck,
   onToggleAlwaysOnTop,
   onMinimize,
   onClose,
 }) => {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastHeightRef = useRef<number>(0);
 
@@ -119,7 +127,10 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
                   task={task}
                   onToggle={onToggleTask}
                   onDelete={onDeleteTask}
+                  onEdit={(t) => setEditingTask(t)}
                   onToggleSubtask={onToggleSubtask}
+                  onAddSubtask={onAddSubtask}
+                  onDeleteSubtask={onDeleteSubtask}
                 />
               ))}
 
@@ -138,7 +149,10 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
                         task={task}
                         onToggle={onToggleTask}
                         onDelete={onDeleteTask}
+                        onEdit={(t) => setEditingTask(t)}
                         onToggleSubtask={onToggleSubtask}
+                        onAddSubtask={onAddSubtask}
+                        onDeleteSubtask={onDeleteSubtask}
                       />
                     ))}
                   </div>
@@ -166,6 +180,15 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onAddTask={onAddTask}
+      />
+
+      <EditTaskModal
+        isOpen={!!editingTask}
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+        onSaveTask={(updated) => {
+          if (onUpdateTask) onUpdateTask(updated);
+        }}
       />
     </div>
   );

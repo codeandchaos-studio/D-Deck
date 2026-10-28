@@ -194,6 +194,45 @@ export const App: React.FC = () => {
     updateData({ ...deckData, tasks: updatedTasks });
   };
 
+  const handleUpdateTask = (updatedTask: Task) => {
+    if (!deckData) return;
+    const updatedTasks = deckData.tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+    updateData({ ...deckData, tasks: updatedTasks });
+  };
+
+  const handleAddSubtask = (taskId: string, title: string) => {
+    if (!deckData || !title.trim()) return;
+    const newSub = {
+      id: 'st-' + Date.now(),
+      title: title.trim(),
+      completed: false,
+    };
+    const updatedTasks = deckData.tasks.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          subtasks: [...(t.subtasks || []), newSub],
+        };
+      }
+      return t;
+    });
+    updateData({ ...deckData, tasks: updatedTasks });
+  };
+
+  const handleDeleteSubtask = (taskId: string, subtaskId: string) => {
+    if (!deckData) return;
+    const updatedTasks = deckData.tasks.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          subtasks: (t.subtasks || []).filter(s => s.id !== subtaskId),
+        };
+      }
+      return t;
+    });
+    updateData({ ...deckData, tasks: updatedTasks });
+  };
+
   const handleMinimize = () => {
     if (window.electronAPI) {
       window.electronAPI.minimizeWindow();
@@ -226,9 +265,12 @@ export const App: React.FC = () => {
           streak={deckData.streak}
           updateAvailable={!!updateInfo?.available}
           onAddTask={handleAddTask}
+          onUpdateTask={handleUpdateTask}
           onToggleTask={handleToggleTask}
           onDeleteTask={handleDeleteTask}
           onToggleSubtask={handleToggleSubtask}
+          onAddSubtask={handleAddSubtask}
+          onDeleteSubtask={handleDeleteSubtask}
           onExpandToDeck={() => handleSwitchMode('deck')}
           onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
           onMinimize={handleMinimize}
@@ -240,9 +282,12 @@ export const App: React.FC = () => {
           settings={deckData.settings}
           streak={deckData.streak}
           onAddTask={handleAddTask}
+          onUpdateTask={handleUpdateTask}
           onToggleTask={handleToggleTask}
           onDeleteTask={handleDeleteTask}
           onToggleSubtask={handleToggleSubtask}
+          onAddSubtask={handleAddSubtask}
+          onDeleteSubtask={handleDeleteSubtask}
           onUpdateSettings={handleUpdateSettings}
           onSwitchToWidget={() => handleSwitchMode('widget')}
           onMinimize={handleMinimize}

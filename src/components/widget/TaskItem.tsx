@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Clock, Trash2, ChevronDown, ChevronUp, AlertCircle, Repeat, VolumeX, ListChecks } from 'lucide-react';
+import { Check, Clock, Trash2, ChevronDown, ChevronUp, AlertCircle, Repeat, VolumeX, ListChecks, Pencil, Plus } from 'lucide-react';
 import type { Task } from '../../types';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { sfx } from '../../services/audio';
@@ -8,16 +8,23 @@ interface TaskItemProps {
   task: Task;
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
+  onEdit?: (task: Task) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
+  onAddSubtask?: (taskId: string, title: string) => void;
+  onDeleteSubtask?: (taskId: string, subtaskId: string) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   onToggle,
   onDelete,
+  onEdit,
   onToggleSubtask,
+  onAddSubtask,
+  onDeleteSubtask,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [inlineSubtaskTitle, setInlineSubtaskTitle] = useState('');
 
   const todayStr = new Date().toISOString().split('T')[0];
   const isOverdue = !task.completed && task.dueDate && task.dueDate < todayStr;
@@ -160,21 +167,39 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-0.5">
+            {onEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sfx.playClick();
+                  onEdit(task);
+                }}
+                className="p-1 text-white/60 hover:text-amber-300 rounded-md hover:bg-amber-400/20 opacity-0 group-hover:opacity-100 transition-all"
+                title="Edit task"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            )}
             <button
-              onClick={() => onDelete(task.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(task.id);
+              }}
               className="p-1 text-white/60 hover:text-rose-400 rounded-md hover:bg-rose-500/20 opacity-0 group-hover:opacity-100 transition-all"
               title="Delete task"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-            {(task.description || (task.subtasks && task.subtasks.length > 0)) && (
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1 text-white/60 hover:text-white rounded-md"
-              >
-                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </button>
-            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
+              className="p-1 text-white/60 hover:text-white rounded-md transition-all"
+              title={isExpanded ? "Collapse" : "Expand details & subtasks"}
+            >
+              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
           </div>
         </div>
 
@@ -185,6 +210,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               <p className="text-white/80 leading-relaxed font-sans">{task.description}</p>
             )}
 
+            {/* Checklist progress and items */}
             {task.subtasks && task.subtasks.length > 0 && (() => {
               const completedCount = task.subtasks.filter(s => s.completed).length;
               const totalCount = task.subtasks.length;
@@ -209,28 +235,80 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                     {task.subtasks.map((sub, idx) => (
                       <div 
                         key={sub.id} 
-                        className={`flex items-center gap-2 p-1.5 rounded-lg border transition-all cursor-pointer ${
+                        className={`flex items-center justify-between p-1.5 rounded-lg border transition-all group/sub ${
                           sub.completed 
                             ? 'bg-white/5 border-white/5 text-white/50' 
                             : 'bg-white/10 border-white/15 text-white hover:bg-white/15 hover:border-amber-400/40'
                         }`}
-                        onClick={() => onToggleSubtask && onToggleSubtask(task.id, sub.id)}
                       >
-                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-all ${
-                          sub.completed ? 'bg-emerald-400 border-emerald-400 text-zinc-950 font-bold' : 'border-white/40 bg-white/10'
-                        }`}>
-                          {sub.completed && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                        <div 
+                          className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                          onClick={() => onToggleSubtask && onToggleSubtask(task.id, sub.id)}
+                        >
+                          <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-all ${
+                            sub.completed ? 'bg-emerald-400 border-emerald-400 text-zinc-950 font-bold' : 'border-white/40 bg-white/10'
+                          }`}>
+                            {sub.completed && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </div>
+                          <span className={`text-[11px] leading-snug select-none truncate ${sub.completed ? 'line-through' : ''}`}>
+                            <span className="text-white/40 font-mono text-[10px] mr-1.5">{idx + 1}.</span>
+                            {sub.title}
+                          </span>
                         </div>
-                        <span className={`text-[11px] leading-snug select-none ${sub.completed ? 'line-through' : ''}`}>
-                          <span className="text-white/40 font-mono text-[10px] mr-1.5">{idx + 1}.</span>
-                          {sub.title}
-                        </span>
+
+                        {onDeleteSubtask && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sfx.playClick();
+                              onDeleteSubtask(task.id, sub.id);
+                            }}
+                            className="p-1 text-white/40 hover:text-rose-400 rounded opacity-0 group-hover/sub:opacity-100 transition-all"
+                            title="Delete subtask"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               );
             })()}
+
+            {/* Quick Inline Subtask Add inside task drawer */}
+            {onAddSubtask && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!inlineSubtaskTitle.trim()) return;
+                  sfx.playClick();
+                  onAddSubtask(task.id, inlineSubtaskTitle.trim());
+                  setInlineSubtaskTitle('');
+                }}
+                className="flex items-center gap-1.5 pt-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="text"
+                  placeholder="+ Add a subtask (press Enter)..."
+                  value={inlineSubtaskTitle}
+                  onChange={(e) => setInlineSubtaskTitle(e.target.value)}
+                  className="flex-1 px-2.5 py-1 text-[11px] bg-white/10 hover:bg-white/15 focus:bg-black/60 border border-white/20 focus:border-amber-400 rounded-lg text-white placeholder-white/40 focus:outline-none transition-all font-sans"
+                />
+                <button
+                  type="submit"
+                  disabled={!inlineSubtaskTitle.trim()}
+                  className="px-2.5 py-1 text-[10px] font-bold bg-amber-400 hover:bg-amber-300 disabled:opacity-30 disabled:hover:bg-amber-400 text-zinc-950 rounded-lg flex items-center gap-1 transition-all shadow-sm active:scale-95"
+                  title="Add Subtask"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Add</span>
+                </button>
+              </form>
+            )}
           </div>
         )}
       </div>
