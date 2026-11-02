@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Calendar, Clock, Repeat, Volume2, VolumeX, ListChecks } from 'lucide-react';
-import type { Task, TaskCategory, TaskPriority } from '../../types';
+import type { Task, TaskCategory, TaskPriority, ProtocolType, Subtask } from '../../types';
 import { sfx } from '../../services/audio';
 
 interface QuickAddModalProps {
@@ -9,6 +9,16 @@ interface QuickAddModalProps {
   onAddTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed'>) => void;
   initialCategory?: string;
 }
+
+const DAYS_OF_WEEK = [
+  { label: 'S', day: 0 },
+  { label: 'M', day: 1 },
+  { label: 'T', day: 2 },
+  { label: 'W', day: 3 },
+  { label: 'T', day: 4 },
+  { label: 'F', day: 5 },
+  { label: 'S', day: 6 },
+];
 
 export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   isOpen,
@@ -24,9 +34,13 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [dueTime, setDueTime] = useState<string>('11:30');
   const [durationDays, setDurationDays] = useState<number>(1);
   const [isRoutine, setIsRoutine] = useState<boolean>(false);
+  const [protocolType, setProtocolType] = useState<ProtocolType>('daily');
+  const [protocolDays, setProtocolDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [subtaskInput, setSubtaskInput] = useState('');
-  const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [subtaskTime, setSubtaskTime] = useState('');
+  const [showSubtaskTime, setShowSubtaskTime] = useState(false);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,15 +49,38 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       setTimeout(() => inputRef.current?.focus(), 80);
       setCategory(initialCategory);
       setIsRoutine(false);
+      setProtocolType('daily');
     }
   }, [isOpen, initialCategory]);
 
   if (!isOpen) return null;
 
+  const toggleProtocolDay = (day: number) => {
+    sfx.playClick();
+    if (protocolDays.includes(day)) {
+      if (protocolDays.length > 1) {
+        setProtocolDays(protocolDays.filter(d => d !== day));
+      }
+    } else {
+      setProtocolDays([...protocolDays, day].sort((a, b) => a - b));
+    }
+  };
+
   const handleAddSubtask = () => {
     if (!subtaskInput.trim()) return;
-    setSubtasks([...subtasks, { id: 'st-' + Date.now(), title: subtaskInput.trim(), completed: false }]);
+    sfx.playClick();
+    setSubtasks([
+      ...subtasks,
+      {
+        id: 'st-' + Date.now(),
+        title: subtaskInput.trim(),
+        completed: false,
+        dueTime: subtaskTime.trim() || undefined,
+      },
+    ]);
     setSubtaskInput('');
+    setSubtaskTime('');
+    setShowSubtaskTime(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -60,6 +97,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       dueTime: dueTime.trim() || undefined,
       durationDays,
       isRoutine,
+      protocolType: isRoutine ? protocolType : undefined,
+      protocolDays: isRoutine && protocolType === 'weekly' ? protocolDays : undefined,
       lastResetDate: isRoutine ? dueDate : undefined,
       reminderEnabled: true,
       soundEnabled,
@@ -244,21 +283,80 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
               </div>
             </div>
 
-            {/* Daily Protocol Auto-Reset Toggle */}
-            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Repeat className={`w-3.5 h-3.5 ${isRoutine ? 'text-emerald-400' : 'text-white/60'}`} />
-                <span className="text-[11px] text-white font-medium">Daily Protocol</span>
+            {/* Protocol Auto-Reset Options */}
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Repeat className={`w-3.5 h-3.5 ${isRoutine ? 'text-emerald-400' : 'text-white/60'}`} />
+                  <span className="text-[11px] text-white font-medium">Auto-Reset Protocol</span>
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isRoutine}
+                    onChange={e => setIsRoutine(e.target.checked)}
+                    className="w-3.5 h-3.5 accent-emerald-400 rounded cursor-pointer"
+                  />
+                  <span className="text-[10px] text-white/70">Recurring Reset</span>
+                </label>
               </div>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isRoutine}
-                  onChange={e => setIsRoutine(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-emerald-400 rounded cursor-pointer"
-                />
-                <span className="text-[10px] text-white/70">Auto-resets midnight</span>
-              </label>
+
+              {isRoutine && (
+                <div className="p-2 rounded-lg bg-black/30 border border-white/10 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sfx.playClick();
+                        setProtocolType('daily');
+                      }}
+                      className={`py-1 rounded font-semibold border transition-all ${
+                        protocolType === 'daily'
+                          ? 'bg-emerald-400/25 border-emerald-400 text-emerald-300'
+                          : 'bg-white/5 border-white/10 text-white/60'
+                      }`}
+                    >
+                      Daily Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sfx.playClick();
+                        setProtocolType('weekly');
+                      }}
+                      className={`py-1 rounded font-semibold border transition-all ${
+                        protocolType === 'weekly'
+                          ? 'bg-amber-400/25 border-amber-400 text-amber-300'
+                          : 'bg-white/5 border-white/10 text-white/60'
+                      }`}
+                    >
+                      Weekly Protocol
+                    </button>
+                  </div>
+
+                  {protocolType === 'weekly' && (
+                    <div className="grid grid-cols-7 gap-1 pt-1">
+                      {DAYS_OF_WEEK.map(({ label, day }) => {
+                        const active = protocolDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => toggleProtocolDay(day)}
+                            className={`py-1 rounded text-[10px] font-mono font-bold border transition-all ${
+                              active
+                                ? 'bg-amber-400 text-zinc-950 border-amber-300'
+                                : 'bg-white/5 border-white/10 text-white/50'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Individual Task Chime Sound Toggle */}

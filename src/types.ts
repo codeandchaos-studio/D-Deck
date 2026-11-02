@@ -6,7 +6,11 @@ export interface Subtask {
   id: string;
   title: string;
   completed: boolean;
+  dueDate?: string; // YYYY-MM-DD
+  dueTime?: string; // HH:mm
 }
+
+export type ProtocolType = 'daily' | 'weekly';
 
 export interface TaskMeta {
   rating?: number; // 1 to 5 stars for movies/games
@@ -37,7 +41,9 @@ export interface Task {
   dueDate?: string; // YYYY-MM-DD
   dueTime?: string; // HH:mm (e.g. 11:30)
   durationDays?: number; // How many days task lasts
-  isRoutine?: boolean; // Daily Routine: automatically resets at midnight
+  isRoutine?: boolean; // Protocol: automatically resets at midnight
+  protocolType?: ProtocolType; // 'daily' (default) or 'weekly'
+  protocolDays?: number[]; // Days of the week for weekly reset: 0 = Sun, 1 = Mon ... 6 = Sat
   lastResetDate?: string; // Track day of last routine reset (YYYY-MM-DD)
   reminderEnabled: boolean;
   soundEnabled?: boolean; // Individual task reminder audio toggle (default true)
@@ -106,6 +112,8 @@ export interface ElectronAPI {
   onUpdateAvailable?: (callback: (info: UpdateInfo) => void) => () => void;
   openPatchNotice?: () => Promise<void>;
   closePatchNotice?: () => Promise<void>;
+  openEditTask?: (taskId: string) => Promise<void>;
+  closeEditTask?: () => Promise<void>;
   openQuickAdd?: (category?: string) => Promise<void>;
   closeQuickAdd?: () => Promise<void>;
   onDataUpdated?: (callback: (data: DeckData) => void) => () => void;

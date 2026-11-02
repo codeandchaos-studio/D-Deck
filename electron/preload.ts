@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeQuickAdd: () => ipcRenderer.invoke('window:close-quick-add'),
   openPatchNotice: () => ipcRenderer.invoke('window:open-patch-notice'),
   closePatchNotice: () => ipcRenderer.invoke('window:close-patch-notice'),
+  openEditTask: (taskId: string) => ipcRenderer.invoke('window:open-edit-task', taskId),
+  closeEditTask: () => ipcRenderer.invoke('window:close-edit-task'),
   onUpdateAvailable: (callback: (info: any) => void) => {
     const handler = (_: any, info: any) => callback(info);
     ipcRenderer.on('deck:update-available', handler);

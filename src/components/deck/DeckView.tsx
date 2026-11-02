@@ -46,7 +46,7 @@ interface DeckViewProps {
   onToggleTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
-  onAddSubtask?: (taskId: string, title: string) => void;
+  onAddSubtask?: (taskId: string, title: string, dueTime?: string) => void;
   onDeleteSubtask?: (taskId: string, subtaskId: string) => void;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
   onSwitchToWidget: () => void;
@@ -416,6 +416,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
                       <TaskItem
                         key={task.id}
                         task={task}
+                        isWidgetMode={false}
                         onToggle={onToggleTask}
                         onDelete={onDeleteTask}
                         onEdit={(t) => setEditingTask(t)}
@@ -436,11 +437,11 @@ export const DeckView: React.FC<DeckViewProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-base font-bold text-white">
-                    {activeTab === 'routines' ? 'Daily Routines' : 'All Tasks'}
+                    {activeTab === 'routines' ? 'Recurring Protocols' : 'All Tasks'}
                   </h2>
                   <p className="text-xs text-white/70 mt-0.5">
                     {activeTab === 'routines' 
-                      ? 'Everyday habits that automatically reset unchecked at midnight.' 
+                      ? 'Everyday and weekly habits that automatically reset unchecked on schedule.' 
                       : 'Comprehensive task backlog with tag organization.'}
                   </p>
                 </div>
@@ -477,6 +478,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
                     <TaskItem
                       key={task.id}
                       task={task}
+                      isWidgetMode={false}
                       onToggle={onToggleTask}
                       onDelete={onDeleteTask}
                       onEdit={(t) => setEditingTask(t)}

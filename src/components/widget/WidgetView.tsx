@@ -16,7 +16,7 @@ interface WidgetViewProps {
   onToggleTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
-  onAddSubtask?: (taskId: string, title: string) => void;
+  onAddSubtask?: (taskId: string, title: string, dueTime?: string) => void;
   onDeleteSubtask?: (taskId: string, subtaskId: string) => void;
   onExpandToDeck: () => void;
   onToggleAlwaysOnTop: () => void;
@@ -125,6 +125,7 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
                 <TaskItem
                   key={task.id}
                   task={task}
+                  isWidgetMode={true}
                   onToggle={onToggleTask}
                   onDelete={onDeleteTask}
                   onEdit={(t) => setEditingTask(t)}
@@ -147,6 +148,7 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
                       <TaskItem
                         key={task.id}
                         task={task}
+                        isWidgetMode={true}
                         onToggle={onToggleTask}
                         onDelete={onDeleteTask}
                         onEdit={(t) => setEditingTask(t)}

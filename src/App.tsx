@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { Task, DeckData, ViewMode, AppSettings, UpdateInfo } from './types';
+import type { Task, Subtask, DeckData, ViewMode, AppSettings, UpdateInfo } from './types';
 import { loadDeckData, saveDeckData, DEFAULT_SETTINGS } from './services/storage';
 import { WidgetView } from './components/widget/WidgetView';
 import { DeckView } from './components/deck/DeckView';
 import { QuickAddPopup } from './components/widget/QuickAddPopup';
 import { PatchNoticePopup } from './components/common/PatchNoticePopup';
 import { PatchNoticeModal } from './components/common/PatchNoticeModal';
+import { EditTaskPopup } from './components/common/EditTaskPopup';
 import { sfx } from './services/audio';
 import { checkUpdates, isUpdateDismissed, dismissUpdate } from './services/updater';
 
@@ -20,6 +21,12 @@ export const App: React.FC = () => {
   const isPatchNoticePopup = typeof window !== 'undefined' && window.location.hash.startsWith('#patch-notice');
   if (isPatchNoticePopup) {
     return <PatchNoticePopup />;
+  }
+
+  // Dedicated Desktop Edit Task window mode (desktop screen popup for widget mode)
+  const isEditTaskPopup = typeof window !== 'undefined' && window.location.hash.startsWith('#edit-task');
+  if (isEditTaskPopup) {
+    return <EditTaskPopup />;
   }
 
   const [deckData, setDeckData] = useState<DeckData | null>(null);
@@ -200,12 +207,14 @@ export const App: React.FC = () => {
     updateData({ ...deckData, tasks: updatedTasks });
   };
 
-  const handleAddSubtask = (taskId: string, title: string) => {
+  const handleAddSubtask = (taskId: string, title: string, dueTime?: string, dueDate?: string) => {
     if (!deckData || !title.trim()) return;
-    const newSub = {
+    const newSub: Subtask = {
       id: 'st-' + Date.now(),
       title: title.trim(),
       completed: false,
+      dueDate,
+      dueTime,
     };
     const updatedTasks = deckData.tasks.map(t => {
       if (t.id === taskId) {

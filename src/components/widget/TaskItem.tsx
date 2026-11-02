@@ -6,16 +6,18 @@ import { sfx } from '../../services/audio';
 
 interface TaskItemProps {
   task: Task;
+  isWidgetMode?: boolean;
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onEdit?: (task: Task) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
-  onAddSubtask?: (taskId: string, title: string) => void;
+  onAddSubtask?: (taskId: string, title: string, dueTime?: string) => void;
   onDeleteSubtask?: (taskId: string, subtaskId: string) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
+  isWidgetMode = false,
   onToggle,
   onDelete,
   onEdit,
@@ -25,10 +27,34 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [inlineSubtaskTitle, setInlineSubtaskTitle] = useState('');
+  const [inlineSubtaskTime, setInlineSubtaskTime] = useState('');
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const isOverdue = !task.completed && task.dueDate && task.dueDate < todayStr;
   const isDueToday = !task.completed && task.dueDate === todayStr;
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    sfx.playClick();
+    if (isWidgetMode && window.electronAPI?.openEditTask) {
+      window.electronAPI.openEditTask(task.id);
+    } else if (onEdit) {
+      onEdit(task);
+    }
+  };
+
+  const getProtocolLabel = () => {
+    if (!task.isRoutine) return null;
+    if (task.protocolType === 'weekly' && Array.isArray(task.protocolDays) && task.protocolDays.length > 0) {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const isWeekdays = task.protocolDays.length === 5 && [1, 2, 3, 4, 5].every(d => task.protocolDays!.includes(d));
+      const isWeekends = task.protocolDays.length === 2 && [0, 6].every(d => task.protocolDays!.includes(d));
+      const summary = isWeekdays ? 'Weekdays' : isWeekends ? 'Weekends' : task.protocolDays.map(d => dayNames[d]).join(', ');
+      return `Weekly: ${summary}`;
+    }
+    return 'Daily Protocol';
+  };
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -135,9 +161,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               )}
 
               {task.isRoutine && (
-                <span className="inline-flex items-center gap-1 text-emerald-300 font-mono text-[9px] bg-emerald-400/20 px-1.5 py-0.5 rounded border border-emerald-400/40 font-semibold" title="Daily Protocol: Automatically resets at midnight">
+                <span 
+                  className={`inline-flex items-center gap-1 font-mono text-[9px] px-1.5 py-0.5 rounded border font-semibold ${
+                    task.protocolType === 'weekly' 
+                      ? 'bg-amber-400/20 text-amber-300 border-amber-400/40' 
+                      : 'bg-emerald-400/20 text-emerald-300 border-emerald-400/40'
+                  }`} 
+                  title={getProtocolLabel() || 'Protocol'}
+                >
                   <Repeat className="w-2.5 h-2.5" />
-                  Protocol
+                  {getProtocolLabel()}
                 </span>
               )}
 
@@ -167,19 +200,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-0.5">
-            {onEdit && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  sfx.playClick();
-                  onEdit(task);
-                }}
-                className="p-1 text-white/60 hover:text-amber-300 rounded-md hover:bg-amber-400/20 opacity-0 group-hover:opacity-100 transition-all"
-                title="Edit task"
-              >
-                <Pencil className="w-3 h-3" />
-              </button>
-            )}
+            <button
+              onClick={handleEditClick}
+              className="p-1 text-white/60 hover:text-amber-300 rounded-md hover:bg-amber-400/20 opacity-0 group-hover:opacity-100 transition-all"
+              title="Edit task"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -254,6 +281,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                             <span className="text-white/40 font-mono text-[10px] mr-1.5">{idx + 1}.</span>
                             {sub.title}
                           </span>
+
+                          {(sub.dueDate || sub.dueTime) && (
+                            <span className="inline-flex items-center gap-1 font-mono text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-amber-300 border border-white/15 shrink-0 ml-1">
+                              <Clock className="w-2.5 h-2.5 text-amber-400" />
+                              {sub.dueTime || ''} {sub.dueDate ? `(${sub.dueDate.slice(5)})` : ''}
+                            </span>
+                          )}
                         </div>
 
                         {onDeleteSubtask && (
@@ -264,7 +298,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                               sfx.playClick();
                               onDeleteSubtask(task.id, sub.id);
                             }}
-                            className="p-1 text-white/40 hover:text-rose-400 rounded opacity-0 group-hover/sub:opacity-100 transition-all"
+                            className="p-1 text-white/40 hover:text-rose-400 rounded opacity-0 group-hover/sub:opacity-100 transition-all shrink-0 ml-1"
                             title="Delete subtask"
                           >
                             <Trash2 className="w-2.5 h-2.5" />
@@ -285,28 +319,65 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   e.stopPropagation();
                   if (!inlineSubtaskTitle.trim()) return;
                   sfx.playClick();
-                  onAddSubtask(task.id, inlineSubtaskTitle.trim());
+                  onAddSubtask(task.id, inlineSubtaskTitle.trim(), inlineSubtaskTime.trim() || undefined);
                   setInlineSubtaskTitle('');
+                  setInlineSubtaskTime('');
+                  setShowTimePicker(false);
                 }}
-                className="flex items-center gap-1.5 pt-1.5"
+                className="space-y-1.5 pt-1.5"
                 onClick={(e) => e.stopPropagation()}
               >
-                <input
-                  type="text"
-                  placeholder="+ Add a subtask (press Enter)..."
-                  value={inlineSubtaskTitle}
-                  onChange={(e) => setInlineSubtaskTitle(e.target.value)}
-                  className="flex-1 px-2.5 py-1 text-[11px] bg-white/10 hover:bg-white/15 focus:bg-black/60 border border-white/20 focus:border-amber-400 rounded-lg text-white placeholder-white/40 focus:outline-none transition-all font-sans"
-                />
-                <button
-                  type="submit"
-                  disabled={!inlineSubtaskTitle.trim()}
-                  className="px-2.5 py-1 text-[10px] font-bold bg-amber-400 hover:bg-amber-300 disabled:opacity-30 disabled:hover:bg-amber-400 text-zinc-950 rounded-lg flex items-center gap-1 transition-all shadow-sm active:scale-95"
-                  title="Add Subtask"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Add</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="+ Add a subtask (press Enter)..."
+                    value={inlineSubtaskTitle}
+                    onChange={(e) => setInlineSubtaskTitle(e.target.value)}
+                    className="flex-1 px-2.5 py-1 text-[11px] bg-white/10 hover:bg-white/15 focus:bg-black/60 border border-white/20 focus:border-amber-400 rounded-lg text-white placeholder-white/40 focus:outline-none transition-all font-sans"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTimePicker(!showTimePicker)}
+                    className={`p-1 rounded-lg border transition-all ${
+                      showTimePicker || inlineSubtaskTime
+                        ? 'bg-amber-400/20 text-amber-300 border-amber-400/50'
+                        : 'bg-white/10 text-white/60 hover:text-white border-white/20'
+                    }`}
+                    title="Set subtask time"
+                  >
+                    <Clock className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!inlineSubtaskTitle.trim()}
+                    className="px-2.5 py-1 text-[10px] font-bold bg-amber-400 hover:bg-amber-300 disabled:opacity-30 disabled:hover:bg-amber-400 text-zinc-950 rounded-lg flex items-center gap-1 transition-all shadow-sm active:scale-95"
+                    title="Add Subtask"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add</span>
+                  </button>
+                </div>
+
+                {showTimePicker && (
+                  <div className="flex items-center gap-2 pl-1">
+                    <span className="text-[9px] font-mono text-white/50">Time:</span>
+                    <input
+                      type="time"
+                      value={inlineSubtaskTime}
+                      onChange={(e) => setInlineSubtaskTime(e.target.value)}
+                      className="px-2 py-0.5 text-[10px] bg-black/50 border border-white/20 focus:border-amber-400 rounded text-white font-mono focus:outline-none"
+                    />
+                    {inlineSubtaskTime && (
+                      <button
+                        type="button"
+                        onClick={() => setInlineSubtaskTime('')}
+                        className="text-[9px] text-rose-300 hover:underline"
+                      >
+                        clear
+                      </button>
+                    )}
+                  </div>
+                )}
               </form>
             )}
           </div>

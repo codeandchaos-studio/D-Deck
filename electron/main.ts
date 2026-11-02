@@ -7,6 +7,7 @@ import type { DeckData, ViewMode, UpdateInfo } from '../src/types';
 let mainWindow: BrowserWindow | null = null;
 let quickAddWindow: BrowserWindow | null = null;
 let patchNoticeWindow: BrowserWindow | null = null;
+let editTaskWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentMode: ViewMode = 'widget';
 let reminderIntervalTimer: NodeJS.Timeout | null = null;
@@ -18,6 +19,8 @@ const POPUP_WIDTH = 380;
 const POPUP_HEIGHT = 540;
 const PATCH_WINDOW_WIDTH = 540;
 const PATCH_WINDOW_HEIGHT = 460;
+const EDIT_TASK_WINDOW_WIDTH = 480;
+const EDIT_TASK_WINDOW_HEIGHT = 640;
 const DECK_WIDTH = 1080;
 const DECK_HEIGHT = 740;
 
@@ -120,23 +123,49 @@ function checkThreeStageReminders() {
   const todayStr = now.toISOString().split('T')[0];
   let changed = false;
 
-  // Daily Habit Auto-Reset Protocol: Routine tasks reset every midnight
+  // Protocol Auto-Reset Engine: Daily & Weekly recurring reset logic
+  const currentDayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
   for (const task of data.tasks) {
-    if (task.isRoutine && task.completed) {
-      const completedDay = task.completedAt ? task.completedAt.split('T')[0] : task.dueDate;
-      if (completedDay && completedDay < todayStr) {
+    if (task.isRoutine) {
+      let shouldReset = false;
+
+      if (task.protocolType === 'weekly' && Array.isArray(task.protocolDays) && task.protocolDays.length > 0) {
+        // Weekly protocol: Check if today is one of the active protocol days and hasn't reset yet today
+        if (task.protocolDays.includes(currentDayOfWeek) && task.lastResetDate !== todayStr) {
+          shouldReset = true;
+        }
+      } else {
+        // Daily protocol: Reset if day changed
+        const lastDay = task.lastResetDate || (task.completedAt ? task.completedAt.split('T')[0] : task.dueDate);
+        if (lastDay && lastDay < todayStr) {
+          shouldReset = true;
+        }
+      }
+
+      if (shouldReset) {
         task.completed = false;
         task.completedAt = undefined;
         task.lastResetDate = todayStr;
         task.dueDate = todayStr;
         task.reminderStages = {};
+        if (Array.isArray(task.subtasks)) {
+          for (const st of task.subtasks) {
+            st.completed = false;
+          }
+        }
         changed = true;
       }
     }
   }
 
+  if (changed) {
+    writeDeckData(data);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('deck:data-updated', data);
+    }
+  }
+
   if (!data.settings.notificationsEnabled) {
-    if (changed) writeDeckData(data);
     return;
   }
 
@@ -337,6 +366,9 @@ function createMainWindow() {
       if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
         patchNoticeWindow.close();
       }
+      if (editTaskWindow && !editTaskWindow.isDestroyed()) {
+        editTaskWindow.close();
+      }
       mainWindow?.hide();
     }
   });
@@ -463,6 +495,72 @@ function createPatchNoticeWindow() {
 
   patchNoticeWindow.on('closed', () => {
     patchNoticeWindow = null;
+  });
+}
+
+function createEditTaskWindow(taskId: string) {
+  if (editTaskWindow && !editTaskWindow.isDestroyed()) {
+    if (editTaskWindow.isMinimized()) editTaskWindow.restore();
+    editTaskWindow.show();
+    editTaskWindow.focus();
+    return;
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  let x = Math.floor((screenWidth - EDIT_TASK_WINDOW_WIDTH) / 2);
+  let y = Math.floor((screenHeight - EDIT_TASK_WINDOW_HEIGHT) / 2);
+
+  if (mainWindow && !mainWindow.isDestroyed() && currentMode === 'widget') {
+    const [wx, wy] = mainWindow.getPosition();
+    if (wx > screenWidth / 2) {
+      x = Math.max(16, wx - EDIT_TASK_WINDOW_WIDTH - 12);
+    } else {
+      x = Math.min(screenWidth - EDIT_TASK_WINDOW_WIDTH - 16, wx + WIDGET_WIDTH + 12);
+    }
+    y = Math.max(24, Math.min(wy, screenHeight - EDIT_TASK_WINDOW_HEIGHT - 24));
+  }
+
+  const appIconPath = path.join(app.getAppPath(), 'public', 'icon.png');
+
+  editTaskWindow = new BrowserWindow({
+    title: '',
+    width: EDIT_TASK_WINDOW_WIDTH,
+    height: EDIT_TASK_WINDOW_HEIGHT,
+    x,
+    y,
+    frame: false,
+    transparent: false,
+    backgroundMaterial: 'acrylic',
+    roundedCorners: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    hasShadow: true,
+    autoHideMenuBar: true,
+    icon: fs.existsSync(appIconPath) ? appIconPath : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false,
+    }
+  });
+
+  editTaskWindow.setMenuBarVisibility(false);
+
+  const hashPath = `edit-task?id=${encodeURIComponent(taskId)}`;
+  const isDev = !app.isPackaged && process.env.NODE_ENV === 'development';
+  if (isDev) {
+    editTaskWindow.loadURL(`http://localhost:5173/#${hashPath}`).catch(() => {
+      editTaskWindow?.loadFile(path.join(app.getAppPath(), 'dist/index.html'), { hash: hashPath });
+    });
+  } else {
+    editTaskWindow.loadFile(path.join(app.getAppPath(), 'dist/index.html'), { hash: hashPath });
+  }
+
+  editTaskWindow.on('closed', () => {
+    editTaskWindow = null;
   });
 }
 
@@ -711,6 +809,9 @@ ipcMain.handle('deck:save-data', (_, data: DeckData) => {
   if (quickAddWindow && !quickAddWindow.isDestroyed()) {
     quickAddWindow.close();
   }
+  if (editTaskWindow && !editTaskWindow.isDestroyed()) {
+    editTaskWindow.close();
+  }
   return ok;
 });
 ipcMain.handle('window:open-quick-add', (_, category?: string) => {
@@ -727,6 +828,14 @@ ipcMain.handle('window:open-patch-notice', () => {
 ipcMain.handle('window:close-patch-notice', () => {
   if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
     patchNoticeWindow.close();
+  }
+});
+ipcMain.handle('window:open-edit-task', (_, taskId: string) => {
+  createEditTaskWindow(taskId);
+});
+ipcMain.handle('window:close-edit-task', () => {
+  if (editTaskWindow && !editTaskWindow.isDestroyed()) {
+    editTaskWindow.close();
   }
 });
 ipcMain.handle('window:set-mode', (_, mode: ViewMode) => setWindowMode(mode));
