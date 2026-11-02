@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeQuickAdd: () => ipcRenderer.invoke('window:close-quick-add'),
   openPatchNotice: () => ipcRenderer.invoke('window:open-patch-notice'),
   closePatchNotice: () => ipcRenderer.invoke('window:close-patch-notice'),
+  startUpdateDownload: (installerUrl?: string) => ipcRenderer.invoke('app:start-update-download', installerUrl),
+  applyUpdateAndRestart: () => ipcRenderer.invoke('app:apply-update-and-restart'),
   openEditTask: (taskId: string) => ipcRenderer.invoke('window:open-edit-task', taskId),
   closeEditTask: () => ipcRenderer.invoke('window:close-edit-task'),
   onUpdateAvailable: (callback: (info: any) => void) => {
@@ -28,6 +30,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('deck:update-available', handler);
     return () => {
       ipcRenderer.removeListener('deck:update-available', handler);
+    };
+  },
+  onUpdateDownloadProgress: (callback: (progress: any) => void) => {
+    const handler = (_: any, progress: any) => callback(progress);
+    ipcRenderer.on('deck:update-download-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('deck:update-download-progress', handler);
+    };
+  },
+  onUpdateDownloadComplete: (callback: (info: any) => void) => {
+    const handler = (_: any, info: any) => callback(info);
+    ipcRenderer.on('deck:update-download-complete', handler);
+    return () => {
+      ipcRenderer.removeListener('deck:update-download-complete', handler);
+    };
+  },
+  onUpdateDownloadError: (callback: (errMsg: any) => void) => {
+    const handler = (_: any, errMsg: any) => callback(errMsg);
+    ipcRenderer.on('deck:update-download-error', handler);
+    return () => {
+      ipcRenderer.removeListener('deck:update-download-error', handler);
     };
   },
   onDataUpdated: (callback: (data: DeckData) => void) => {

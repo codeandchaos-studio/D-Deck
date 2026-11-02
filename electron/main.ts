@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, shell, screen, n
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
+import { spawn } from 'child_process';
 import type { DeckData, ViewMode, UpdateInfo } from '../src/types';
 
 let mainWindow: BrowserWindow | null = null;
@@ -12,6 +13,9 @@ let tray: Tray | null = null;
 let currentMode: ViewMode = 'widget';
 let reminderIntervalTimer: NodeJS.Timeout | null = null;
 let isQuitting = false;
+
+let downloadedUpdatePath: string | null = null;
+let isDownloadingUpdate = false;
 
 const WIDGET_WIDTH = 280;
 const WIDGET_DEFAULT_HEIGHT = 160;
@@ -799,6 +803,110 @@ function fetchLatestRelease(): Promise<UpdateInfo> {
   });
 }
 
+function broadcastUpdateProgress(progress: any) {
+  if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
+    patchNoticeWindow.webContents.send('deck:update-download-progress', progress);
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('deck:update-download-progress', progress);
+  }
+}
+
+function broadcastUpdateComplete(filePath: string) {
+  if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
+    patchNoticeWindow.webContents.send('deck:update-download-complete', { filePath });
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('deck:update-download-complete', { filePath });
+  }
+}
+
+function broadcastUpdateError(errMsg: string) {
+  if (patchNoticeWindow && !patchNoticeWindow.isDestroyed()) {
+    patchNoticeWindow.webContents.send('deck:update-download-error', errMsg);
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('deck:update-download-error', errMsg);
+  }
+}
+
+function downloadFileWithRedirects(initialUrl: string, targetPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let transferred = 0;
+    let total = 0;
+    const startTime = Date.now();
+    let fileStream: fs.WriteStream | null = null;
+
+    function request(url: string, redirectCount = 0) {
+      if (redirectCount > 8) {
+        return reject(new Error('Too many redirects while downloading update file'));
+      }
+
+      const parsedUrl = new URL(url);
+      const options = {
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname + parsedUrl.search,
+        headers: {
+          'User-Agent': 'D-Deck-App-Updater',
+          'Accept': 'application/octet-stream, application/vnd.github.v3+json, */*'
+        }
+      };
+
+      const req = https.get(options, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return request(res.headers.location, redirectCount + 1);
+        }
+
+        if (res.statusCode !== 200) {
+          return reject(new Error(`Server returned status code ${res.statusCode}`));
+        }
+
+        total = parseInt(res.headers['content-length'] || '0', 10);
+        fileStream = fs.createWriteStream(targetPath);
+
+        let lastBroadcastTime = 0;
+
+        res.on('data', (chunk: Buffer) => {
+          transferred += chunk.length;
+          fileStream?.write(chunk);
+
+          const now = Date.now();
+          if (now - lastBroadcastTime > 250 || transferred === total) {
+            lastBroadcastTime = now;
+            const elapsedSec = (now - startTime) / 1000 || 1;
+            const speed = Math.round(transferred / elapsedSec);
+            const percent = total > 0 ? Math.min(100, Math.round((transferred / total) * 100)) : 0;
+            broadcastUpdateProgress({
+              percent,
+              transferredBytes: transferred,
+              totalBytes: total,
+              speedBytesPerSec: speed,
+            });
+          }
+        });
+
+        res.on('end', () => {
+          fileStream?.end(() => {
+            resolve(targetPath);
+          });
+        });
+
+        res.on('error', (err) => {
+          fileStream?.close();
+          try { fs.unlinkSync(targetPath); } catch {}
+          reject(err);
+        });
+      });
+
+      req.on('error', (err) => {
+        reject(err);
+      });
+    }
+
+    request(initialUrl);
+  });
+}
+
 // IPC Handlers
 ipcMain.handle('deck:get-data', () => readDeckData());
 ipcMain.handle('deck:save-data', (_, data: DeckData) => {
@@ -876,6 +984,60 @@ ipcMain.handle('app:select-custom-sound', async () => {
 });
 ipcMain.handle('app:check-for-updates', async () => {
   return await fetchLatestRelease();
+});
+ipcMain.handle('app:start-update-download', async (_, customUrl?: string) => {
+  if (isDownloadingUpdate) return true;
+
+  try {
+    let targetUrl = customUrl;
+    if (!targetUrl || targetUrl.includes('releases/latest')) {
+      const releaseInfo = await fetchLatestRelease();
+      targetUrl = releaseInfo.installerUrl || releaseInfo.downloadUrl;
+    }
+
+    if (!targetUrl) {
+      throw new Error('Unable to resolve update download URL');
+    }
+
+    isDownloadingUpdate = true;
+    const tempInstallerPath = path.join(app.getPath('temp'), 'D-Deck-Update-Setup.exe');
+    if (fs.existsSync(tempInstallerPath)) {
+      try { fs.unlinkSync(tempInstallerPath); } catch {}
+    }
+
+    downloadFileWithRedirects(targetUrl, tempInstallerPath)
+      .then((savedPath) => {
+        downloadedUpdatePath = savedPath;
+        isDownloadingUpdate = false;
+        broadcastUpdateComplete(savedPath);
+      })
+      .catch((err) => {
+        isDownloadingUpdate = false;
+        broadcastUpdateError(err.message || 'Failed to download update');
+      });
+
+    return true;
+  } catch (err: any) {
+    isDownloadingUpdate = false;
+    broadcastUpdateError(err.message || 'Failed to start download');
+    return false;
+  }
+});
+ipcMain.handle('app:apply-update-and-restart', () => {
+  const updateExe = downloadedUpdatePath || path.join(app.getPath('temp'), 'D-Deck-Update-Setup.exe');
+  if (!fs.existsSync(updateExe)) {
+    throw new Error('Update installer file not found on disk');
+  }
+
+  isQuitting = true;
+
+  const child = spawn(updateExe, [], {
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
+
+  app.quit();
 });
 ipcMain.handle('window:set-always-on-top', (_, flag: boolean) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(flag);

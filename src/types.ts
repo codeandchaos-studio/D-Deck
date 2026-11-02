@@ -86,6 +86,13 @@ export interface UpdateInfo {
   portableUrl?: string;
 }
 
+export interface UpdateDownloadProgress {
+  percent: number;
+  transferredBytes: number;
+  totalBytes: number;
+  speedBytesPerSec?: number;
+}
+
 export interface DeckData {
   tasks: Task[];
   settings: AppSettings;
@@ -112,6 +119,11 @@ export interface ElectronAPI {
   onUpdateAvailable?: (callback: (info: UpdateInfo) => void) => () => void;
   openPatchNotice?: () => Promise<void>;
   closePatchNotice?: () => Promise<void>;
+  startUpdateDownload?: (installerUrl?: string) => Promise<boolean>;
+  applyUpdateAndRestart?: () => Promise<void>;
+  onUpdateDownloadProgress?: (callback: (progress: UpdateDownloadProgress) => void) => () => void;
+  onUpdateDownloadComplete?: (callback: (info: { filePath: string }) => void) => () => void;
+  onUpdateDownloadError?: (callback: (errMsg: string) => void) => () => void;
   openEditTask?: (taskId: string) => Promise<void>;
   closeEditTask?: () => Promise<void>;
   openQuickAdd?: (category?: string) => Promise<void>;

@@ -52,6 +52,32 @@ function bumpVersion(currentVersion, bumpType) {
   return `${major}.${minor}.${patch}`;
 }
 
+// Automatically archive previous version binaries from release/ into old_versions/
+function archivePreviousReleases() {
+  const releaseDir = path.join(rootDir, 'release');
+  const oldDir = path.join(rootDir, 'old_versions');
+  if (!fs.existsSync(releaseDir)) return;
+  if (!fs.existsSync(oldDir)) fs.mkdirSync(oldDir, { recursive: true });
+
+  const files = fs.readdirSync(releaseDir);
+  let count = 0;
+  for (const f of files) {
+    if (f.endsWith('.exe') || f.endsWith('.blockmap')) {
+      const src = path.join(releaseDir, f);
+      const dst = path.join(oldDir, f);
+      try {
+        fs.renameSync(src, dst);
+        count++;
+      } catch (err) {
+        // file might be locked or already moved
+      }
+    }
+  }
+  if (count > 0) {
+    console.log(`📦 Archived ${count} previous release binary file(s) into old_versions/`);
+  }
+}
+
 // Generate dynamic release notes based on git history and custom notes
 function generateReleaseNotes(targetVersion, customNotes = '') {
   const lastTag = run('git describe --tags --abbrev=0', { ignoreError: true });
@@ -84,24 +110,27 @@ function generateReleaseNotes(targetVersion, customNotes = '') {
   notes += `> Built by **Code & Chaos** — *We Built Stuff*\n\n`;
   notes += `---\n\n`;
 
-  notes += `### ✨ Key Highlights in this Build\n`;
+  notes += `### ✨ Key Highlights & New Features in this Build\n`;
   if (customNotes) {
     notes += `- **${customNotes}**\n`;
   }
   if (features.length > 0) {
     for (const f of features) {
-      notes += `- **New**: ${f}\n`;
+      const formatted = f.charAt(0).toUpperCase() + f.slice(1);
+      notes += `- **New**: ${formatted}\n`;
     }
   }
   if (fixes.length > 0) {
     for (const fx of fixes) {
-      notes += `- **Fix**: ${fx}\n`;
+      const formatted = fx.charAt(0).toUpperCase() + fx.slice(1);
+      notes += `- **Fix**: ${formatted}\n`;
     }
   }
   if (!customNotes && features.length === 0 && fixes.length === 0) {
     if (others.length > 0) {
       for (const o of others.slice(0, 5)) {
-        notes += `- ${o}\n`;
+        const formatted = o.charAt(0).toUpperCase() + o.slice(1);
+        notes += `- ${formatted}\n`;
       }
     } else {
       notes += `- Performance optimizations, stability enhancements, and UI refinements.\n`;
@@ -126,6 +155,9 @@ async function main() {
   console.log('      Crafted by Code & Chaos           ');
   console.log('========================================\n');
 
+  // Archive any older binaries left in release/ to old_versions/
+  archivePreviousReleases();
+
   // 1. Read package.json
   const pkgPath = path.join(rootDir, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -134,17 +166,23 @@ async function main() {
   // 2. Parse arguments
   const isDryRun = process.argv.includes('--dry-run');
   const nonFlagArgs = process.argv.slice(2).filter(a => !a.startsWith('--'));
-  const arg = nonFlagArgs[0] || 'patch';
-  const customNotes = nonFlagArgs.slice(1).join(' ').trim();
+  const firstArg = nonFlagArgs[0] || 'patch';
   let targetVersion = '';
+  let customNotes = '';
 
-  if (['patch', 'minor', 'major'].includes(arg)) {
-    targetVersion = bumpVersion(currentVersion, arg);
-  } else if (/^v?\d+\.\d+\.\d+(-[\w.]+)?$/.test(arg)) {
-    targetVersion = arg.replace(/^v/, '');
+  if (['patch', 'minor', 'major'].includes(firstArg.toLowerCase())) {
+    targetVersion = bumpVersion(currentVersion, firstArg.toLowerCase());
+    customNotes = nonFlagArgs.slice(1).join(' ').trim();
+  } else if (/^v?\d+\.\d+\.\d+(-[\w.]+)?$/.test(firstArg)) {
+    targetVersion = firstArg.replace(/^v/, '');
+    customNotes = nonFlagArgs.slice(1).join(' ').trim();
+  } else if (nonFlagArgs.length > 0) {
+    // User provided a release note message directly without specifying bump type!
+    // Default to patch bump
+    targetVersion = bumpVersion(currentVersion, 'patch');
+    customNotes = nonFlagArgs.join(' ').trim();
   } else {
-    console.error(`❌ Invalid version or bump type: "${arg}". Use "patch", "minor", "major", or a version like "1.0.1".`);
-    process.exit(1);
+    targetVersion = bumpVersion(currentVersion, 'patch');
   }
 
   const tagName = `v${targetVersion}`;
