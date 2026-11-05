@@ -166,17 +166,97 @@ export const App: React.FC = () => {
 
   const handleToggleTask = (taskId: string) => {
     if (!deckData) return;
+    const today = new Date().toISOString().split('T')[0];
     const updatedTasks = deckData.tasks.map(t => {
       if (t.id === taskId) {
+        const willBeCompleted = !t.completed;
+        let streak = t.streak || 0;
+        let bestStreak = t.bestStreak || 0;
+        let lastCompletedDate = t.lastCompletedDate;
+
+        if (willBeCompleted && t.isRoutine) {
+          if (lastCompletedDate !== today) {
+            streak += 1;
+            bestStreak = Math.max(bestStreak, streak);
+            lastCompletedDate = today;
+
+            // Trigger celebratory confetti for habit streak milestones!
+            if (streak === 3 || streak === 7 || streak % 10 === 0) {
+              import('canvas-confetti').then((confettiModule) => {
+                const confetti = confettiModule.default || confettiModule;
+                confetti({
+                  particleCount: 75,
+                  spread: 60,
+                  origin: { y: 0.65 }
+                });
+              }).catch(() => {});
+            }
+          }
+        }
+
         return {
           ...t,
-          completed: !t.completed,
-          completedAt: !t.completed ? new Date().toISOString() : undefined,
+          completed: willBeCompleted,
+          completedAt: willBeCompleted ? new Date().toISOString() : undefined,
+          streak,
+          bestStreak,
+          lastCompletedDate,
         };
       }
       return t;
     });
     updateData({ ...deckData, tasks: updatedTasks });
+  };
+
+  const handleToggleFocusTask = (taskId: string) => {
+    if (!deckData) return;
+    sfx.playClick();
+    const updatedTasks = deckData.tasks.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          isFocusToday: !t.isFocusToday,
+        };
+      }
+      return t;
+    });
+    updateData({ ...deckData, tasks: updatedTasks });
+  };
+
+  const handleSnoozeTask = async (taskId: string, minutes: number) => {
+    if (window.electronAPI?.snoozeTaskReminder) {
+      await window.electronAPI.snoozeTaskReminder(taskId, minutes);
+    } else if (deckData) {
+      sfx.playClick();
+      const now = new Date();
+      const snoozedDate = new Date(now.getTime() + minutes * 60 * 1000);
+      const hh = String(snoozedDate.getHours()).padStart(2, '0');
+      const mm = String(snoozedDate.getMinutes()).padStart(2, '0');
+      const updatedTasks = deckData.tasks.map(t => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            dueTime: `${hh}:${mm}`,
+            dueDate: snoozedDate.toISOString().split('T')[0],
+            reminderStages: {},
+          };
+        }
+        return t;
+      });
+      updateData({ ...deckData, tasks: updatedTasks });
+    }
+  };
+
+  const handleSetZenMode = async (zenUntil: number | null) => {
+    sfx.playClick();
+    if (window.electronAPI?.setZenMode) {
+      await window.electronAPI.setZenMode(zenUntil);
+    } else if (deckData) {
+      updateData({
+        ...deckData,
+        settings: { ...deckData.settings, zenUntil }
+      });
+    }
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -276,6 +356,9 @@ export const App: React.FC = () => {
           onAddTask={handleAddTask}
           onUpdateTask={handleUpdateTask}
           onToggleTask={handleToggleTask}
+          onToggleFocusTask={handleToggleFocusTask}
+          onSnoozeTask={handleSnoozeTask}
+          onSetZenMode={handleSetZenMode}
           onDeleteTask={handleDeleteTask}
           onToggleSubtask={handleToggleSubtask}
           onAddSubtask={handleAddSubtask}
@@ -293,6 +376,9 @@ export const App: React.FC = () => {
           onAddTask={handleAddTask}
           onUpdateTask={handleUpdateTask}
           onToggleTask={handleToggleTask}
+          onToggleFocusTask={handleToggleFocusTask}
+          onSnoozeTask={handleSnoozeTask}
+          onSetZenMode={handleSetZenMode}
           onDeleteTask={handleDeleteTask}
           onToggleSubtask={handleToggleSubtask}
           onAddSubtask={handleAddSubtask}

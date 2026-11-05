@@ -1,5 +1,20 @@
 import React, { useState } from 'react';
-import { Check, Clock, Trash2, ChevronDown, ChevronUp, AlertCircle, Repeat, VolumeX, ListChecks, Pencil, Plus } from 'lucide-react';
+import { 
+  Check, 
+  Clock, 
+  Trash2, 
+  ChevronDown, 
+  ChevronUp, 
+  AlertCircle, 
+  Repeat, 
+  VolumeX, 
+  ListChecks, 
+  Pencil, 
+  Plus,
+  Star,
+  Flame,
+  AlarmClockPlus
+} from 'lucide-react';
 import type { Task } from '../../types';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { sfx } from '../../services/audio';
@@ -8,6 +23,8 @@ interface TaskItemProps {
   task: Task;
   isWidgetMode?: boolean;
   onToggle: (taskId: string) => void;
+  onToggleFocus?: (taskId: string) => void;
+  onSnooze?: (taskId: string, minutes: number) => void;
   onDelete: (taskId: string) => void;
   onEdit?: (task: Task) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
@@ -19,6 +36,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   isWidgetMode = false,
   onToggle,
+  onToggleFocus,
+  onSnooze,
   onDelete,
   onEdit,
   onToggleSubtask,
@@ -116,6 +135,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       className={`group relative rounded-xl border transition-all duration-150 overflow-hidden ${
         task.completed 
           ? 'bg-white/5 border-white/10 opacity-60' 
+          : task.isFocusToday
+          ? 'bg-amber-400/10 border-amber-400/50 shadow-sm shadow-amber-400/10'
           : isOverdue
           ? 'bg-rose-500/10 border-rose-500/40'
           : 'glass-card border-white/20 hover:border-amber-400/50 hover:bg-white/15'
@@ -142,6 +163,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 className={`text-xs font-medium leading-snug cursor-pointer transition-all ${
                   task.completed 
                     ? 'line-through text-white/50' 
+                    : task.isFocusToday
+                    ? 'text-amber-200 font-semibold hover:text-amber-100'
                     : 'text-white hover:text-amber-200'
                 }`}
               >
@@ -174,6 +197,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 </span>
               )}
 
+              {task.isRoutine && task.streak !== undefined && task.streak > 0 && (
+                <span 
+                  className="inline-flex items-center gap-1 font-mono text-[9px] px-1.5 py-0.5 rounded border font-bold bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border-amber-400/50 shadow-sm shadow-amber-500/10" 
+                  title={`Habit Streak: ${task.streak} day${task.streak > 1 ? 's' : ''} in a row! (Best: ${task.bestStreak || task.streak}d)`}
+                >
+                  <Flame className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+                  {task.streak}d streak
+                </span>
+              )}
+
               {task.reminderEnabled && task.soundEnabled === false && (
                 <span className="inline-flex items-center gap-1 text-white/50 font-mono text-[9px] bg-white/5 px-1 py-0.5 rounded border border-white/10" title="Reminder is silent (chime muted)">
                   <VolumeX className="w-2.5 h-2.5" />
@@ -200,6 +233,36 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-0.5">
+            {/* Today Focus Star Toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onToggleFocus) onToggleFocus(task.id);
+              }}
+              className={`p-1 rounded-md transition-all ${
+                task.isFocusToday 
+                  ? 'text-amber-400 hover:text-amber-300' 
+                  : 'text-white/30 hover:text-amber-300 opacity-0 group-hover:opacity-100'
+              }`}
+              title={task.isFocusToday ? "Remove from Today's Focus" : "Pin to Today's Focus (★)"}
+            >
+              <Star className={`w-3.5 h-3.5 ${task.isFocusToday ? 'fill-amber-400 text-amber-400' : ''}`} />
+            </button>
+
+            {/* Quick Snooze +15m */}
+            {onSnooze && !task.completed && (task.dueTime || isOverdue) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSnooze(task.id, 15);
+                }}
+                className="p-1 text-white/50 hover:text-cyan-300 rounded-md hover:bg-cyan-400/20 opacity-0 group-hover:opacity-100 transition-all"
+                title="Snooze reminder by +15 minutes"
+              >
+                <AlarmClockPlus className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             <button
               onClick={handleEditClick}
               className="p-1 text-white/60 hover:text-amber-300 rounded-md hover:bg-amber-400/20 opacity-0 group-hover:opacity-100 transition-all"

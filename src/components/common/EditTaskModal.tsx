@@ -12,7 +12,8 @@ import {
   Check, 
   Tag, 
   Sparkles,
-  CalendarDays
+  CalendarDays,
+  Star
 } from 'lucide-react';
 import type { Task, TaskPriority, Subtask, ProtocolType } from '../../types';
 import { sfx } from '../../services/audio';
@@ -52,6 +53,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const [protocolType, setProtocolType] = useState<ProtocolType>('daily');
   const [protocolDays, setProtocolDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [isFocusToday, setIsFocusToday] = useState<boolean>(false);
 
   // Subtasks
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
@@ -75,6 +77,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       setProtocolType(task.protocolType || 'daily');
       setProtocolDays(task.protocolDays && task.protocolDays.length > 0 ? task.protocolDays : [1, 2, 3, 4, 5]);
       setSoundEnabled(task.soundEnabled !== false);
+      setIsFocusToday(task.isFocusToday || false);
       setSubtasks(task.subtasks ? [...task.subtasks] : []);
       setTimeout(() => inputRef.current?.focus(), 80);
     }
@@ -168,6 +171,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       isRoutine,
       protocolType: isRoutine ? protocolType : undefined,
       protocolDays: isRoutine && protocolType === 'weekly' ? protocolDays : undefined,
+      isFocusToday,
       soundEnabled,
       subtasks,
     };
@@ -195,13 +199,32 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               ID: {task.id.slice(-6)}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-white/60 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-            title="Close (Esc)"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                sfx.playClick();
+                setIsFocusToday(!isFocusToday);
+              }}
+              className={`px-2 py-0.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+                isFocusToday
+                  ? 'bg-amber-400 text-zinc-950 border-amber-400 font-bold shadow-sm'
+                  : 'bg-white/10 text-white/70 hover:text-white border-white/15'
+              }`}
+              title="Toggle Today's Focus queue priority"
+            >
+              <Star className={`w-3.5 h-3.5 ${isFocusToday ? 'fill-current' : ''}`} />
+              <span>Today Focus</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 text-white/60 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              title="Close (Esc)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-3.5 space-y-3.5">

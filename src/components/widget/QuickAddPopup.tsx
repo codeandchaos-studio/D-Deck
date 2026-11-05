@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Calendar, Clock, CheckSquare, Repeat, Volume2, VolumeX, ListChecks } from 'lucide-react';
+import { X, Plus, Calendar, Clock, CheckSquare, Repeat, Volume2, VolumeX, ListChecks, Sparkles } from 'lucide-react';
 import type { Task, TaskCategory, TaskPriority, ProtocolType, Subtask } from '../../types';
 import { loadDeckData, saveDeckData } from '../../services/storage';
 import { DDeckLogo } from '../common/DDeckLogo';
 import { sfx } from '../../services/audio';
+import { parseNaturalLanguageInput } from '../../utils/nlpParser';
 
 const DAYS_OF_WEEK = [
   { label: 'S', day: 0 },
@@ -61,6 +62,8 @@ export const QuickAddPopup: React.FC = () => {
     setSubtaskInput('');
   };
 
+  const parsedNLP = parseNaturalLanguageInput(title);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || isSubmitting) return;
@@ -68,21 +71,31 @@ export const QuickAddPopup: React.FC = () => {
     setIsSubmitting(true);
     sfx.playClick();
 
+    const finalTitle = (parsedNLP.cleanTitle || title).trim();
+    const finalDueDate = parsedNLP.dueDate || dueDate;
+    const finalDueTime = parsedNLP.dueTime || (dueTime.trim() ? dueTime.trim() : undefined);
+    const finalPriority = parsedNLP.priority || priority;
+    const finalCategory = parsedNLP.category || category;
+    const finalRoutine = parsedNLP.isRoutine !== undefined ? parsedNLP.isRoutine : isRoutine;
+    const finalProtocolType = parsedNLP.protocolType || (finalRoutine ? protocolType : undefined);
+    const finalFocus = parsedNLP.isFocusToday !== undefined ? parsedNLP.isFocusToday : false;
+
     const newTask: Task = {
       id: 'task-' + Date.now(),
-      title: title.trim(),
+      title: finalTitle,
       description: description.trim() || undefined,
-      category,
-      priority,
+      category: finalCategory,
+      priority: finalPriority,
       completed: false,
       createdAt: new Date().toISOString(),
-      dueDate,
-      dueTime: dueTime.trim() || undefined,
+      dueDate: finalDueDate,
+      dueTime: finalDueTime,
       durationDays,
-      isRoutine,
-      protocolType: isRoutine ? protocolType : undefined,
-      protocolDays: isRoutine && protocolType === 'weekly' ? protocolDays : undefined,
-      lastResetDate: isRoutine ? dueDate : undefined,
+      isRoutine: finalRoutine,
+      protocolType: finalProtocolType,
+      protocolDays: finalRoutine && finalProtocolType === 'weekly' ? protocolDays : undefined,
+      lastResetDate: finalRoutine ? finalDueDate : undefined,
+      isFocusToday: finalFocus,
       reminderEnabled: true,
       soundEnabled,
       subtasks,
@@ -108,6 +121,9 @@ export const QuickAddPopup: React.FC = () => {
           <span className="text-xs font-bold text-white tracking-wide">
             New Task
           </span>
+          <span className="text-[10px] font-mono font-normal text-amber-300/80 bg-amber-400/15 px-1.5 py-0.5 rounded border border-amber-400/30">
+            Smart Input Active
+          </span>
         </div>
 
         <div className="titlebar-no-drag flex items-center gap-1">
@@ -132,9 +148,36 @@ export const QuickAddPopup: React.FC = () => {
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="What needs to be done?"
+              placeholder="e.g. Deploy site tomorrow 5pm p1 #work"
               className="w-full px-3 py-2 text-xs glass-input rounded-lg text-white placeholder-white/50 focus:outline-none transition-all font-medium"
             />
+
+            {/* Live Natural Language Detected Chips */}
+            {parsedNLP.detectedTokens.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2 p-2 bg-amber-400/10 border border-amber-400/30 rounded-xl animate-in fade-in duration-150">
+                <span className="text-[9px] font-mono font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5" /> Auto-detected:
+                </span>
+                {parsedNLP.detectedTokens.map((token, idx) => (
+                  <span 
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-white/15 text-white border border-white/20"
+                  >
+                    <span>{token.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTitle(prev => prev.replace(token.raw, '').replace(/\s+/g, ' ').trim());
+                      }}
+                      className="text-white/60 hover:text-rose-400 text-[10px] leading-none"
+                      title="Remove token"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Description */}

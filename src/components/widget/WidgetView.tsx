@@ -4,7 +4,8 @@ import { WidgetHeader } from './WidgetHeader';
 import { TaskItem } from './TaskItem';
 import { QuickAddModal } from './QuickAddModal';
 import { EditTaskModal } from '../common/EditTaskModal';
-import { Plus, Flame, CheckCircle2 } from 'lucide-react';
+import { Plus, Flame, CheckCircle2, Star, ShieldAlert } from 'lucide-react';
+import { sfx } from '../../services/audio';
 
 interface WidgetViewProps {
   tasks: Task[];
@@ -14,6 +15,9 @@ interface WidgetViewProps {
   onAddTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed'>) => void;
   onUpdateTask?: (updatedTask: Task) => void;
   onToggleTask: (taskId: string) => void;
+  onToggleFocusTask?: (taskId: string) => void;
+  onSnoozeTask?: (taskId: string, minutes: number) => void;
+  onSetZenMode?: (zenUntil: number | null) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
   onAddSubtask?: (taskId: string, title: string, dueTime?: string) => void;
@@ -32,6 +36,9 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
   onAddTask,
   onUpdateTask,
   onToggleTask,
+  onToggleFocusTask,
+  onSnoozeTask,
+  onSetZenMode,
   onDeleteTask,
   onToggleSubtask,
   onAddSubtask,
@@ -41,10 +48,13 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
   onMinimize,
   onClose,
 }) => {
+  const [activeFilter, setActiveFilter] = useState<'all' | 'focus'>('all');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastHeightRef = useRef<number>(0);
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   // Dynamic Content-Adaptive Height: Auto-measure and resize Electron window
   useLayoutEffect(() => {
@@ -71,10 +81,16 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
       observer.observe(el);
       return () => observer.disconnect();
     }
-  }, [tasks]);
+  }, [tasks, activeFilter]);
 
-  const pendingTasks = tasks.filter(t => !t.completed);
-  const completedTasks = tasks.filter(t => t.completed);
+  const allPending = tasks.filter(t => !t.completed);
+  const allCompleted = tasks.filter(t => t.completed);
+
+  const focusPending = allPending.filter(t => t.isFocusToday || t.dueDate === todayStr);
+  const focusCompleted = allCompleted.filter(t => t.isFocusToday || t.dueDate === todayStr);
+
+  const pendingTasks = activeFilter === 'focus' ? focusPending : allPending;
+  const completedTasks = activeFilter === 'focus' ? focusCompleted : allCompleted;
 
   const handleOpenAdd = () => {
     if (window.electronAPI?.openQuickAdd) {
@@ -93,6 +109,8 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
         onQuickAdd={handleOpenAdd}
         onExpandToDeck={onExpandToDeck}
         alwaysOnTop={settings.alwaysOnTop}
+        zenUntil={settings.zenUntil}
+        onSetZenMode={onSetZenMode}
         updateAvailable={updateAvailable}
         onToggleAlwaysOnTop={onToggleAlwaysOnTop}
         onMinimize={onMinimize}
@@ -100,16 +118,59 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
       />
 
       <div className="flex flex-col px-3 pt-2 pb-2.5 space-y-2">
+        {/* Today Focus vs All Queue Segmented Filter */}
+        <div className="flex items-center gap-1 p-0.5 bg-black/30 rounded-lg border border-white/10 text-[10px] font-sans">
+          <button
+            onClick={() => {
+              sfx.playClick();
+              setActiveFilter('all');
+            }}
+            className={`flex-1 py-1 px-2 rounded-md transition-all font-semibold flex items-center justify-center gap-1.5 ${
+              activeFilter === 'all'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <span>All Tasks</span>
+            <span className="font-mono text-[9px] opacity-75">({allPending.length})</span>
+          </button>
+          <button
+            onClick={() => {
+              sfx.playClick();
+              setActiveFilter('focus');
+            }}
+            className={`flex-1 py-1 px-2 rounded-md transition-all font-semibold flex items-center justify-center gap-1.5 ${
+              activeFilter === 'focus'
+                ? 'bg-amber-400 text-zinc-950 shadow-sm font-bold'
+                : 'text-amber-300/80 hover:text-amber-300'
+            }`}
+          >
+            <Star className="w-3 h-3 fill-current" />
+            <span>Today Focus</span>
+            <span className="font-mono text-[9px] opacity-80">({focusPending.length})</span>
+          </button>
+        </div>
+
         {/* Tasks Container with dynamic content-hugged height */}
         <div className="max-h-[380px] overflow-y-auto pr-0.5 space-y-1.5 scrollbar-thin">
-          {tasks.length === 0 ? (
-            <div className="py-3.5 px-2 flex flex-col items-center justify-center text-center text-white/70 space-y-2">
+          {pendingTasks.length === 0 && completedTasks.length === 0 ? (
+            <div className="py-4 px-2 flex flex-col items-center justify-center text-center text-white/70 space-y-2">
               <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-amber-400">
-                <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                {activeFilter === 'focus' ? (
+                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                )}
               </div>
               <div className="space-y-0.5">
-                <p className="text-xs font-bold text-white">All clear</p>
-                <p className="text-[10px] text-white/60">Capture what needs to be done</p>
+                <p className="text-xs font-bold text-white">
+                  {activeFilter === 'focus' ? "No Focus Tasks Pinned" : "All clear"}
+                </p>
+                <p className="text-[10px] text-white/60">
+                  {activeFilter === 'focus' 
+                    ? "Click the ★ on any task to focus on it today" 
+                    : "Capture what needs to be done"}
+                </p>
               </div>
               <button
                 onClick={handleOpenAdd}
@@ -127,6 +188,8 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
                   task={task}
                   isWidgetMode={true}
                   onToggle={onToggleTask}
+                  onToggleFocus={onToggleFocusTask}
+                  onSnooze={onSnoozeTask}
                   onDelete={onDeleteTask}
                   onEdit={(t) => setEditingTask(t)}
                   onToggleSubtask={onToggleSubtask}
@@ -150,6 +213,8 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
                         task={task}
                         isWidgetMode={true}
                         onToggle={onToggleTask}
+                        onToggleFocus={onToggleFocusTask}
+                        onSnooze={onSnoozeTask}
                         onDelete={onDeleteTask}
                         onEdit={(t) => setEditingTask(t)}
                         onToggleSubtask={onToggleSubtask}

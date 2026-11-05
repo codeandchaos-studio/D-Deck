@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Maximize2, Pin, PinOff, Minus, X, Timer, Play, Pause, RotateCcw, Sparkles } from 'lucide-react';
+import { Plus, Maximize2, Pin, PinOff, Minus, X, Timer, Play, Pause, RotateCcw, Sparkles, Shield } from 'lucide-react';
 import { DDeckLogo } from '../common/DDeckLogo';
 import { sfx } from '../../services/audio';
 
@@ -7,6 +7,8 @@ interface WidgetHeaderProps {
   onQuickAdd: () => void;
   onExpandToDeck: () => void;
   alwaysOnTop: boolean;
+  zenUntil?: number | null;
+  onSetZenMode?: (zenUntil: number | null) => void;
   updateAvailable?: boolean;
   onToggleAlwaysOnTop: () => void;
   onMinimize: () => void;
@@ -19,6 +21,8 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
   onQuickAdd,
   onExpandToDeck,
   alwaysOnTop,
+  zenUntil,
+  onSetZenMode,
   updateAvailable,
   onToggleAlwaysOnTop,
   onMinimize,
@@ -30,6 +34,22 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
   const [isRunning, setIsRunning] = useState(false);
 
   const currentPresetMins = SPRINT_PRESETS[presetIndex];
+
+  const now = Date.now();
+  const isZenActive = !!(zenUntil && zenUntil > now);
+  const remainingMins = isZenActive ? Math.ceil((zenUntil! - now) / (60 * 1000)) : 0;
+
+  const handleToggleZen = () => {
+    sfx.playClick();
+    if (!onSetZenMode) return;
+    if (!isZenActive) {
+      onSetZenMode(Date.now() + 45 * 60 * 1000);
+    } else if (remainingMins <= 45) {
+      onSetZenMode(Date.now() + 120 * 60 * 1000);
+    } else {
+      onSetZenMode(null);
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -145,6 +165,19 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
           </button>
         )}
+
+        {/* Zen Focus Shield */}
+        <button
+          onClick={handleToggleZen}
+          title={isZenActive ? `Zen Focus Shield Active (${remainingMins}m left) - Click to extend or turn off` : "Activate Zen Focus Shield (Mute reminder chimes for 45m)"}
+          className={`p-1 rounded-lg transition-all border ${
+            isZenActive 
+              ? 'text-cyan-300 bg-cyan-400/25 border-cyan-400/60 shadow-sm shadow-cyan-400/20' 
+              : 'text-white/80 hover:text-cyan-300 hover:bg-cyan-400/10 border-transparent'
+          }`}
+        >
+          <Shield className="w-3.5 h-3.5" />
+        </button>
 
         {/* Quick Add */}
         <button

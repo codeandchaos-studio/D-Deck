@@ -31,7 +31,9 @@ import {
   RotateCcw,
   Tag,
   Check,
-  CheckCircle2
+  CheckCircle2,
+  Star,
+  Shield
 } from 'lucide-react';
 import { sfx } from '../../services/audio';
 import { exportDataAsJSON } from '../../services/storage';
@@ -44,6 +46,9 @@ interface DeckViewProps {
   onAddTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed'>) => void;
   onUpdateTask?: (updatedTask: Task) => void;
   onToggleTask: (taskId: string) => void;
+  onToggleFocusTask?: (taskId: string) => void;
+  onSnoozeTask?: (taskId: string, minutes: number) => void;
+  onSetZenMode?: (zenUntil: number | null) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleSubtask?: (taskId: string, subtaskId: string) => void;
   onAddSubtask?: (taskId: string, title: string, dueTime?: string) => void;
@@ -61,6 +66,9 @@ export const DeckView: React.FC<DeckViewProps> = ({
   onAddTask,
   onUpdateTask,
   onToggleTask,
+  onToggleFocusTask,
+  onSnoozeTask,
+  onSetZenMode,
   onDeleteTask,
   onToggleSubtask,
   onAddSubtask,
@@ -115,6 +123,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
   const overdueTasksCount = tasks.filter(t => !t.completed && t.dueDate && t.dueDate < todayStr).length;
   const todayTasksCount = tasks.filter(t => !t.completed && t.dueDate === todayStr).length;
   const routineTasksCount = tasks.filter(t => t.isRoutine).length;
+  const focusTasksCount = tasks.filter(t => !t.completed && (t.isFocusToday || t.dueDate === todayStr)).length;
 
   // Extract all distinct user-defined categories / tags dynamically
   const availableTags = Array.from(
@@ -123,6 +132,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
 
   const filteredTasks = tasks.filter(t => {
     // Specific tab filtering
+    if (activeTab === 'focus' && !t.isFocusToday && t.dueDate !== todayStr) return false;
     if (activeTab === 'routines' && !t.isRoutine) return false;
 
     // Status filter
@@ -146,6 +156,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
 
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard, count: pendingTasksCount },
+    { id: 'focus', label: "Today's Focus", icon: Star, count: focusTasksCount },
     { id: 'tasks', label: 'All Tasks', icon: CheckSquare, count: totalTasks },
     { id: 'routines', label: 'Daily Protocols', icon: Repeat, count: routineTasksCount },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -283,6 +294,30 @@ export const DeckView: React.FC<DeckViewProps> = ({
           </div>
 
           <div className="titlebar-no-drag flex items-center gap-2">
+            {/* Zen Focus Shield */}
+            {onSetZenMode && (
+              <button
+                onClick={() => {
+                  sfx.playClick();
+                  const isZen = !!(settings.zenUntil && settings.zenUntil > Date.now());
+                  if (!isZen) {
+                    onSetZenMode(Date.now() + 45 * 60 * 1000);
+                  } else {
+                    onSetZenMode(null);
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold transition-all ${
+                  settings.zenUntil && settings.zenUntil > Date.now()
+                    ? 'bg-cyan-400/25 border-cyan-400/60 text-cyan-300 shadow-sm'
+                    : 'bg-white/10 border-white/20 text-white/80 hover:text-cyan-300 hover:bg-cyan-400/10'
+                }`}
+                title={settings.zenUntil && settings.zenUntil > Date.now() ? "Zen Focus Shield Active (Muting Reminders) - Click to turn off" : "Activate Zen Focus Shield (Mute reminder chimes for 45m)"}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span>{settings.zenUntil && settings.zenUntil > Date.now() ? 'Zen ON' : 'Zen Shield'}</span>
+              </button>
+            )}
+
             <button
               onClick={() => handleOpenAdd()}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-bold text-xs transition-all active:scale-95 shadow-sm"
@@ -418,6 +453,8 @@ export const DeckView: React.FC<DeckViewProps> = ({
                         task={task}
                         isWidgetMode={false}
                         onToggle={onToggleTask}
+                        onToggleFocus={onToggleFocusTask}
+                        onSnooze={onSnoozeTask}
                         onDelete={onDeleteTask}
                         onEdit={(t) => setEditingTask(t)}
                         onToggleSubtask={onToggleSubtask}
@@ -431,16 +468,19 @@ export const DeckView: React.FC<DeckViewProps> = ({
             </div>
           )}
 
-          {/* All Tasks Tab & Daily Routines Tab */}
-          {(activeTab === 'tasks' || activeTab === 'routines') && (
+          {/* All Tasks Tab, Daily Routines Tab, & Today's Focus Tab */}
+          {(activeTab === 'tasks' || activeTab === 'routines' || activeTab === 'focus') && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-bold text-white">
-                    {activeTab === 'routines' ? 'Recurring Protocols' : 'All Tasks'}
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    {activeTab === 'focus' && <Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
+                    {activeTab === 'focus' ? "Today's Focus Queue" : activeTab === 'routines' ? 'Recurring Protocols' : 'All Tasks'}
                   </h2>
                   <p className="text-xs text-white/70 mt-0.5">
-                    {activeTab === 'routines' 
+                    {activeTab === 'focus'
+                      ? 'Essential missions scheduled or starred for today. Clear these before touching the backlog.'
+                      : activeTab === 'routines' 
                       ? 'Everyday and weekly habits that automatically reset unchecked on schedule.' 
                       : 'Comprehensive task backlog with tag organization.'}
                   </p>
@@ -480,6 +520,8 @@ export const DeckView: React.FC<DeckViewProps> = ({
                       task={task}
                       isWidgetMode={false}
                       onToggle={onToggleTask}
+                      onToggleFocus={onToggleFocusTask}
+                      onSnooze={onSnoozeTask}
                       onDelete={onDeleteTask}
                       onEdit={(t) => setEditingTask(t)}
                       onToggleSubtask={onToggleSubtask}

@@ -147,6 +147,9 @@ function checkThreeStageReminders() {
       }
 
       if (shouldReset) {
+        if (!task.completed) {
+          task.streak = 0;
+        }
         task.completed = false;
         task.completedAt = undefined;
         task.lastResetDate = todayStr;
@@ -169,7 +172,9 @@ function checkThreeStageReminders() {
     }
   }
 
-  if (!data.settings.notificationsEnabled) {
+  // Check Zen Focus Shield: Mute notifications and chimes during Zen mode
+  const isZenActive = !!(data.settings.zenUntil && data.settings.zenUntil > now.getTime());
+  if (isZenActive || !data.settings.notificationsEnabled) {
     return;
   }
 
@@ -1038,6 +1043,34 @@ ipcMain.handle('app:apply-update-and-restart', () => {
   child.unref();
 
   app.quit();
+});
+ipcMain.handle('app:set-zen-mode', (_, zenUntil: number | null) => {
+  const data = readDeckData();
+  data.settings.zenUntil = zenUntil;
+  writeDeckData(data);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('deck:data-updated', data);
+  }
+  return true;
+});
+ipcMain.handle('app:snooze-task', (_, taskId: string, minutes: number) => {
+  const data = readDeckData();
+  const task = data.tasks.find(t => t.id === taskId);
+  if (!task) return false;
+
+  const now = new Date();
+  const snoozedDate = new Date(now.getTime() + minutes * 60 * 1000);
+  const hh = String(snoozedDate.getHours()).padStart(2, '0');
+  const mm = String(snoozedDate.getMinutes()).padStart(2, '0');
+  task.dueTime = `${hh}:${mm}`;
+  task.dueDate = snoozedDate.toISOString().split('T')[0];
+  task.reminderStages = {}; // Reset reminder flags so alert sounds when new time arrives
+
+  writeDeckData(data);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('deck:data-updated', data);
+  }
+  return true;
 });
 ipcMain.handle('window:set-always-on-top', (_, flag: boolean) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(flag);

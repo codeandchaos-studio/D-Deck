@@ -45,6 +45,10 @@ export interface Task {
   protocolType?: ProtocolType; // 'daily' (default) or 'weekly'
   protocolDays?: number[]; // Days of the week for weekly reset: 0 = Sun, 1 = Mon ... 6 = Sat
   lastResetDate?: string; // Track day of last routine reset (YYYY-MM-DD)
+  streak?: number; // Current consecutive completion streak for habit protocols
+  bestStreak?: number; // All-time highest streak count
+  lastCompletedDate?: string; // YYYY-MM-DD of last completion to prevent double-incrementing
+  isFocusToday?: boolean; // Starred / pinned to Today's Focus queue
   reminderEnabled: boolean;
   soundEnabled?: boolean; // Individual task reminder audio toggle (default true)
   reminderStages?: ReminderStages;
@@ -64,6 +68,8 @@ export interface AppSettings {
   widgetY?: number;
   deckX?: number;
   deckY?: number;
+  zenUntil?: number | null; // Timestamp (Date.now() + ms) until which sound and reminders are silenced
+  activeFilter?: 'all' | 'focus'; // Current widget view filter
 }
 
 export interface StreakMetrics {
@@ -128,6 +134,8 @@ export interface ElectronAPI {
   closeEditTask?: () => Promise<void>;
   openQuickAdd?: (category?: string) => Promise<void>;
   closeQuickAdd?: () => Promise<void>;
+  setZenMode?: (zenUntil: number | null) => Promise<void>;
+  snoozeTaskReminder?: (taskId: string, minutes: number) => Promise<boolean>;
   onDataUpdated?: (callback: (data: DeckData) => void) => () => void;
   onReminderSound?: (callback: () => void) => () => void;
 }

@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   applyUpdateAndRestart: () => ipcRenderer.invoke('app:apply-update-and-restart'),
   openEditTask: (taskId: string) => ipcRenderer.invoke('window:open-edit-task', taskId),
   closeEditTask: () => ipcRenderer.invoke('window:close-edit-task'),
+  setZenMode: (zenUntil: number | null) => ipcRenderer.invoke('app:set-zen-mode', zenUntil),
+  snoozeTaskReminder: (taskId: string, minutes: number) => ipcRenderer.invoke('app:snooze-task', taskId, minutes),
   onUpdateAvailable: (callback: (info: any) => void) => {
     const handler = (_: any, info: any) => callback(info);
     ipcRenderer.on('deck:update-available', handler);
