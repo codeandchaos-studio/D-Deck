@@ -554,10 +554,21 @@ export const DeckView: React.FC<DeckViewProps> = ({
                     <p className="text-xs text-white/70 mt-1 font-mono">
                       Personal Command HUD & Stealth Desktop Widget for Windows
                     </p>
-                    <div className="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/35 text-emerald-300 text-xs font-mono font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.electronAPI) {
+                          window.electronAPI.openExternal('https://codeandchaos.dpdns.org/');
+                        } else {
+                          window.open('https://codeandchaos.dpdns.org/', '_blank');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/35 text-emerald-300 text-xs font-mono font-semibold hover:bg-emerald-500/30 hover:border-emerald-400/60 transition-all cursor-pointer"
+                      title="Visit Official Studio Website (codeandchaos.dpdns.org)"
+                    >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Team Code & Chaos • We Built Stuff</span>
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -626,15 +637,16 @@ export const DeckView: React.FC<DeckViewProps> = ({
                   <button
                     onClick={() => {
                       if (window.electronAPI) {
-                        window.electronAPI.openExternal('https://codeandchaos-studio.github.io/D-Deck/');
+                        window.electronAPI.openExternal('https://codeandchaos.dpdns.org/');
                       } else {
-                        window.open('https://codeandchaos-studio.github.io/D-Deck/', '_blank');
+                        window.open('https://codeandchaos.dpdns.org/', '_blank');
                       }
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-emerald-400/50 hover:text-emerald-300 transition-all active:scale-95 font-medium"
+                    title="https://codeandchaos.dpdns.org/"
                   >
                     <Globe className="w-3.5 h-3.5" />
-                    <span>Official Website</span>
+                    <span>Studio Website</span>
                   </button>
 
                   <button

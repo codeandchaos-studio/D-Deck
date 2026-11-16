@@ -62,13 +62,14 @@ No need to clone repositories or build code. Just download the app and enjoy:
    - **`D-Deck-Portable-*.exe`**: Standalone portable version. Just double-click and run directly from anywhere (USB drive, Desktop, or Downloads).
 3. Open the app, press `Ctrl+Shift+D` to show or hide it, and you're good to go.
 
-You can also check out our website at [https://codeandchaos-studio.github.io/D-Deck/website/](https://codeandchaos-studio.github.io/D-Deck/website/).
+You can also check out our official studio website at [https://codeandchaos.dpdns.org/](https://codeandchaos.dpdns.org/).
 
 ## Team
 
 **Code & Chaos**  
 *We Built Stuff*  
-Repository: [https://github.com/codeandchaos-studio/D-Deck](https://github.com/codeandchaos-studio/D-Deck)
+- Studio Website: [https://codeandchaos.dpdns.org/](https://codeandchaos.dpdns.org/)
+- Repository: [https://github.com/codeandchaos-studio/D-Deck](https://github.com/codeandchaos-studio/D-Deck)
 
 ## License
 

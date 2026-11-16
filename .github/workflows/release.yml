@@ -49,6 +49,7 @@ jobs:
           # 🚀 D-Deck Release $tag
           > **Futuristic Desktop HUD Widget & Personal Command Center**
           > Built by **Code & Chaos** — *We Built Stuff*
+          > Official Studio: [codeandchaos.dpdns.org](https://codeandchaos.dpdns.org/)
 
           ---
 
@@ -64,7 +65,7 @@ jobs:
           | **Windows Portable** | Zero installation single executable, runs immediately from USB or folder | D-Deck-Portable-*.exe |
 
           ---
-          *Open Source • MIT License • Crafted by Code & Chaos*
+          *Open Source • MIT License • Crafted by [Code & Chaos](https://codeandchaos.dpdns.org/)*
           "@
             Set-Content -Path "RELEASE_NOTES.md" -Value $content -Encoding utf8
           }

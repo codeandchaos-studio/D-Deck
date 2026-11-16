@@ -3,7 +3,8 @@
   "version": "2.3.2",
   "description": "D-Deck: Futuristic Desktop Widget & Life Command Center for Windows & macOS",
   "main": "dist-electron/electron/main.js",
-  "author": "Code & Chaos <https://github.com/codeandchaos-studio>",
+  "author": "Code & Chaos <https://codeandchaos.dpdns.org/>",
+  "homepage": "https://codeandchaos.dpdns.org/",
   "repository": "https://github.com/codeandchaos-studio/D-Deck",
   "license": "MIT",
   "scripts": {

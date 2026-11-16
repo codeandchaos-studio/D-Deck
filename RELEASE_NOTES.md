@@ -1,6 +1,7 @@
 # 🚀 D-Deck Release v2.3.2
 > **Futuristic Desktop HUD Widget & Personal Command Center**
 > Built by **Code & Chaos** — *We Built Stuff*
+> Official Studio: [codeandchaos.dpdns.org](https://codeandchaos.dpdns.org/)
 
 ---
 
@@ -17,4 +18,4 @@
 | **Windows Portable** | Zero installation single executable, runs immediately from USB or folder | `D-Deck-Portable-2.3.2.exe` |
 
 ---
-*Open Source • MIT License • Crafted by Code & Chaos*
+*Open Source • MIT License • Crafted by [Code & Chaos](https://codeandchaos.dpdns.org/)*

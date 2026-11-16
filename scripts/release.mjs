@@ -107,7 +107,8 @@ function generateReleaseNotes(targetVersion, customNotes = '') {
 
   let notes = `# 🚀 D-Deck Release v${targetVersion}\n`;
   notes += `> **Futuristic Desktop HUD Widget & Personal Command Center**\n`;
-  notes += `> Built by **Code & Chaos** — *We Built Stuff*\n\n`;
+  notes += `> Built by **Code & Chaos** — *We Built Stuff*\n`;
+  notes += `> Official Studio: [codeandchaos.dpdns.org](https://codeandchaos.dpdns.org/)\n\n`;
   notes += `---\n\n`;
 
   notes += `### ✨ Key Highlights & New Features in this Build\n`;
@@ -144,7 +145,7 @@ function generateReleaseNotes(targetVersion, customNotes = '') {
   notes += `| **Windows Installer** | Recommended for Windows 10/11 with desktop shortcut & auto-start | \`D-Deck-Setup-${targetVersion}.exe\` |\n`;
   notes += `| **Windows Portable** | Zero installation single executable, runs immediately from USB or folder | \`D-Deck-Portable-${targetVersion}.exe\` |\n\n`;
   notes += `---\n`;
-  notes += `*Open Source • MIT License • Crafted by Code & Chaos*\n`;
+  notes += `*Open Source • MIT License • Crafted by [Code & Chaos](https://codeandchaos.dpdns.org/)*\n`;
 
   return notes;
 }
